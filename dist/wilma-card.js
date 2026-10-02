@@ -15,7 +15,7 @@
  * ks. test/model.test.mjs.
  */
 
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 
 // Oppiaineet: [koodin alku tai sana nimessä, nimi]. Myöhempi osuma voittaa.
 const KOODIT = [
