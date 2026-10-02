@@ -7,6 +7,9 @@
  *   subjects:                  # valinnainen: koulun omat ainekoodit
  *     KO: Kotitalous
  *   strip_suffixes: [XYZ]      # valinnainen: tuntimerkinnän perästä poistettavat tunnisteet
+ *   pinned:                    # valinnainen: kiinnitetyt viestit
+ *     - subject: Liikunta      #   uusin viesti, jonka otsikossa on teksti (myös sender)
+ *     - id: 1234567            #   yksittäinen viesti
  *
  * wilmaModel() on puhdas funktio (ei DOMia), jotta logiikkaa voi testata Nodessa:
  * ks. test/model.test.mjs.
@@ -131,7 +134,8 @@ function rivit(tila, alku) {
  * @param {(rooli: string) => {state: string, attributes: object} | undefined} s
  *        sensorin tila roolin mukaan: 'tanaan', 'kaikki_laksyt', … (ks. ROOLIT)
  * @param {Date} nyt
- * @param {{subjects?: Record<string, string>, strip_suffixes?: string[]}} [asetukset]
+ * @param {{subjects?: Record<string, string>, strip_suffixes?: string[], pinned?: Array<object|string>}} [asetukset]
+ *        pinned: kiinnityssäännöt {subject?, sender?, id?}; merkkijono on sama kuin {subject}
  *        strip_suffixes: merkinnän perästä poistettavat tunnisteet, esim. "Kotitehtävät tekemättä, XYZ" -> ["XYZ"]
  */
 function wilmaModel(s, nyt, asetukset = {}) {
@@ -334,6 +338,36 @@ function wilmaModel(s, nyt, asetukset = {}) {
   lisaaOsio('Huomautukset', 'varoitus', kerää('kaikki_tuntimerkinnat', 'item_', true, 6, [1, 4], HUOMAUTUSSANAT).map(huomio));
   lisaaOsio('Tiedotteet', 'tiedote', kerää('tiedote', 'news_', true, 0, [], []).map(huomio));
 
+  /*
+   * Kiinnitetyt viestit. Jokainen sääntö kiinnittää uusimman siihen sopivan viestin, joten
+   * esim. viikoittainen viesti vaihtuu itsestään. Tunnisteet tulevat sensorin
+   * messages-attribuutista; ilman sitä (vanhempi integraatio) käytetään msg_-rivejä.
+   */
+  const viestisensori = s('uudet_viestit');
+  const viestilista = viestisensori && viestisensori.attributes && Array.isArray(viestisensori.attributes.messages)
+    ? viestisensori.attributes.messages.map((v) => ({
+      id: Number(v.id) || null, aika: String(v.timestamp || ''), otsikko: String(v.subject || ''),
+      lahettaja: String(v.sender || ''), lukematon: !!v.unread,
+    }))
+    : rivit(viestisensori, 'msg_').map((v) => {
+      const o = osat(v.replace(/^●\s*/, ''));
+      return { id: null, aika: o[0] || '', otsikko: o[1] || '', lahettaja: o.slice(2).join(SEP), lukematon: /^●/.test(v) };
+    });
+  viestilista.sort((a, b) => b.aika.localeCompare(a.aika));
+  const kiinnitetyt = [];
+  for (const raaka of Array.isArray(asetukset.pinned) ? asetukset.pinned : []) {
+    const ehto = typeof raaka === 'string' ? { subject: raaka } : (raaka || {});
+    const id = Number(ehto.id) || null;
+    const otsikossa = String(ehto.subject || '').trim().toLowerCase();
+    const lahettajassa = String(ehto.sender || '').trim().toLowerCase();
+    if (!id && !otsikossa && !lahettajassa) continue;
+    const osuma = viestilista.find((v) => (!id || v.id === id)
+      && (!otsikossa || v.otsikko.toLowerCase().includes(otsikossa))
+      && (!lahettajassa || v.lahettaja.toLowerCase().includes(lahettajassa)));
+    if (osuma && !kiinnitetyt.includes(osuma)) kiinnitetyt.push(osuma);
+  }
+  for (const v of kiinnitetyt) { v.paiva = isoPaiva(v.aika); v.paivays = pvm(v.aika); }
+
   /* Arvosanat: "2026-09-28 · ENA1 ENA109 · 10 · KPL 5 sanakoe". */
   const arvosanat = kerää('arvosanat', 'grade_', true, 0, [], []).slice(0, ENINTAAN).map((o) => ({
     arvosana: o[2] || '', aine: aine(o[1] || '', al).nimi, kuvaus: o.slice(3).join(SEP), paivays: pvm(o[0]),
@@ -372,6 +406,7 @@ function wilmaModel(s, nyt, asetukset = {}) {
     viikkorivi,
     kokeet: { lahella, myohemmin },
     huomiot,
+    kiinnitetyt,
     arvosanat,
     kehut: { rivit: kehut.slice(0, ENINTAAN), yhteensa: kehut.length, viikolla: kehujaViikolla },
   };
@@ -383,6 +418,12 @@ const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&':
 // Wilman tekstissä rivinvaihdot ovat merkityksellisiä (tehtävälistat).
 const rivitetty = (v) => esc(v).replace(/\s*\n\s*/g, '<br>');
 const monikko = (n, yks, mon) => `${n} ${n === 1 ? yks : mon}`;
+/** Viestin teksti: escapattu, ja vain http(s)-osoitteet linkeiksi. */
+const linkitetty = (v) => esc(v).replace(/https?:\/\/[^\s<>"']+/g, (osoite) => {
+  const loppu = (/(?:&amp;|&quot;|&#39;|[.,;:!?)\]])+$/.exec(osoite) || [''])[0];
+  const url = loppu ? osoite.slice(0, -loppu.length) : osoite;
+  return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${loppu}`;
+});
 
 const TYYLIT = `
 :host { display: block; --w-hl: #D9F24B; --w-ink: #15170A; }
@@ -450,10 +491,26 @@ h2 { margin: 0; font-size: 28px; line-height: 1.1; }
 .arvosana > b { font-size: 44px; line-height: 1; letter-spacing: -0.03em; }
 .kehu .teksti-iso { font-size: 22px; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; }
 .ryhma { font-size: 14px; font-weight: 500; }
+.kiinni .viesti { font-size: 14px; line-height: 1.5; opacity: 0.85; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 4px; }
+.kiinni .viesti.supistettu { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.kiinni .viesti a { color: inherit; }
+.kiinni .vastaus { border-left: 2px solid var(--divider-color); padding-left: 10px; margin-top: 10px; }
+.kiinni .vastaus .meta { display: block; opacity: 1; white-space: normal; }
+.kiinni .uusi { font-size: 12px; font-weight: 500; margin-left: 8px; }
+button.linkki { background: none; border: 0; margin: 0; padding: 0; min-height: 44px; font: inherit; font-size: 14px; font-weight: 500; color: var(--primary-text-color); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; text-align: left; align-self: flex-start; }
+button.linkki:focus-visible { outline: 2px solid var(--w-hl); outline-offset: 2px; }
 .tyhja { font-size: 14px; }
 `;
 
-function piirra(m, nimi) {
+/**
+ * @param {object} m      wilmaModelin tulos
+ * @param {string} nimi   otsikon yläpuolen teksti
+ * @param {{palvelu?: boolean, auki?: Set<number>, viestit?: Map<number, object>}} [ui]
+ *        kortin tila: onko wilma.get_message käytössä, avatut viestit ja haetut sisällöt
+ */
+function piirra(m, nimi, ui = {}) {
+  const auki = ui.auki || new Set();
+  const haetut = ui.viestit || new Map();
   const h = [];
   const osio = (otsikko, oikea = '') => `<div class="otsikko"><h2 class="disp">${esc(otsikko)}</h2><span class="sec">${esc(oikea)}</span></div>`;
   const era = (d) => (d ? `<div class="era"><small class="sec">${PV[vp(d)]}</small><b class="num">${d.getDate()}.${d.getMonth() + 1}.</b></div>` : '<div></div>');
@@ -482,6 +539,30 @@ function piirra(m, nimi) {
   }
   for (const k of m.koeHalytykset) {
     h.push(`<div class="kisko koe-halytys"><div></div><div><span class="hl">Koe ${esc(k.milloin)}</span> ${esc(k.aine)}${k.kuvaus ? ` · ${esc(k.kuvaus)}` : ''}</div></div>`);
+  }
+
+  /* Kiinnitetyt viestit */
+  if (m.kiinnitetyt && m.kiinnitetyt.length) {
+    h.push(osio('Kiinnitetyt'));
+    h.push(`<div class="lista">${m.kiinnitetyt.map((v) => {
+      const d = v.id ? haetut.get(v.id) : null;
+      const avattu = v.id && auki.has(v.id);
+      let runko = '';
+      if (d && d.tila === 'ok') {
+        const vastaukset = avattu ? d.vastaukset.map((r) => `<div class="viesti vastaus"><span class="meta sec">${[r.sender, r.timestamp].filter(Boolean).map(esc).join(' · ')}</span>${linkitetty(r.content)}</div>`).join('') : '';
+        // Esikatselussa tyhjät rivit pois, jotta kolmelle riville mahtuu sisältöä.
+        const teksti = avattu ? d.sisalto : d.sisalto.replace(/\n\s*\n+/g, '\n');
+        runko = `<div class="viesti${avattu ? '' : ' supistettu'}" data-viesti="${v.id}">${linkitetty(teksti) || '<span class="sec">Viestissä ei ole tekstiä.</span>'}</div>${vastaukset}
+          <button class="linkki" type="button" data-toiminto="vaihda" data-id="${v.id}" data-vastauksia="${d.vastaukset.length}" aria-expanded="${avattu ? 'true' : 'false'}">${avattu ? 'Näytä vähemmän' : 'Näytä lisää'}</button>`;
+      } else if (d && d.tila === 'ladataan') {
+        runko = '<div class="viesti sec">Haetaan viestiä…</div>';
+      } else if (d && d.tila === 'virhe') {
+        runko = `<div class="viesti sec">Viestin haku epäonnistui: ${esc(d.virhe)}</div><button class="linkki" type="button" data-toiminto="hae" data-id="${v.id}">Yritä uudelleen</button>`;
+      } else if (v.id && ui.palvelu) {
+        runko = `<button class="linkki" type="button" data-toiminto="hae" data-id="${v.id}">Lue viesti</button>`;
+      }
+      return `<div class="kisko kiinni">${era(v.paiva)}<div class="sis"><span class="nimi">${esc(v.otsikko)}${v.lukematon ? '<span class="hl uusi">lukematon</span>' : ''}</span><span class="meta sec">${esc(v.lahettaja)}</span>${runko}</div></div>`;
+    }).join('')}</div>`);
   }
 
   /* Läksyt */
@@ -627,7 +708,22 @@ if (typeof HTMLElement !== 'undefined' && typeof customElements !== 'undefined')
       this._config = config || {};
       this._avain = '';
       this._ratkaisu = null;
-      if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
+      this._auki = this._auki || new Set(); // avatut kiinnitetyt viestit
+      this._viestit = this._viestit || new Map(); // id -> {tila, sisalto, vastaukset, virhe}
+      if (!this.shadowRoot) {
+        this.attachShadow({ mode: 'open' });
+        // Sisältö piirretään uudelleen joka päivityksellä, joten painikkeet kuunnellaan juuresta.
+        this.shadowRoot.addEventListener('click', (ev) => {
+          const nappi = ev.target.closest && ev.target.closest('button[data-toiminto]');
+          if (!nappi) return;
+          const id = Number(nappi.dataset.id);
+          if (nappi.dataset.toiminto === 'hae') this._haeViesti(id, true);
+          else if (this._auki.has(id)) this._auki.delete(id);
+          else this._auki.add(id);
+          this._kohdistus = `button[data-id="${id}"]`;
+          this._paivita(true);
+        });
+      }
       // @font-face ei vaikuta shadow DOMin sisältä; fontti rekisteröidään dokumenttiin kerran.
       if (!document.getElementById('wilma-card-font')) {
         const st = document.createElement('style');
@@ -663,7 +759,28 @@ if (typeof HTMLElement !== 'undefined' && typeof customElements !== 'undefined')
       return this._ratkaisu;
     }
 
-    _paivita() {
+    /** Hakee viestin sisällön integraatiolta. Wilma merkitsee viestin luetuksi. */
+    async _haeViesti(id, avaa) {
+      const { roolit } = this._ratkaise();
+      const tila = this._viestit.get(id);
+      if (!id || !roolit || !roolit.uudet_viestit || (tila && tila.tila === 'ladataan')) return;
+      this._viestit.set(id, { tila: 'ladataan' });
+      if (avaa) this._auki.add(id);
+      this._paivita(true);
+      try {
+        const tulos = await this._hass.callWS({
+          type: 'call_service', domain: 'wilma', service: 'get_message',
+          service_data: { entity_id: roolit.uudet_viestit, message_id: id }, return_response: true,
+        });
+        const v = (tulos && tulos.response) || {};
+        this._viestit.set(id, { tila: 'ok', sisalto: String(v.content || ''), vastaukset: Array.isArray(v.replies) ? v.replies : [] });
+      } catch (err) {
+        this._viestit.set(id, { tila: 'virhe', virhe: (err && err.message) || String(err) });
+      }
+      this._paivita(true);
+    }
+
+    _paivita(pakota) {
       if (!this._hass || !this._config || !this.shadowRoot) return;
       const { roolit, laite, virhe } = this._ratkaise();
       const nyt = new Date();
@@ -672,7 +789,7 @@ if (typeof HTMLElement !== 'undefined' && typeof customElements !== 'undefined')
         const t = tila(x);
         return t ? t.last_updated : '-';
       }).join('|')) + '|' + Math.floor(nyt.getTime() / 60000);
-      if (avain === this._avain) return;
+      if (avain === this._avain && !pakota) return;
       this._avain = avain;
       if (virhe) {
         this.shadowRoot.innerHTML = `<ha-card style="padding:16px">${esc(virhe)}</ha-card>`;
@@ -683,10 +800,29 @@ if (typeof HTMLElement !== 'undefined' && typeof customElements !== 'undefined')
       const kokoNimi = (laite && laiteNimi(laite)) || (oppilas ? String(oppilas.state) : '') || this._config.child || '';
       const nimi = this._config.title || [kokoNimi.split(' ')[0], luokka].filter(Boolean).join(' · ');
       try {
-        this.shadowRoot.innerHTML = piirra(wilmaModel(tila, nyt, { subjects: this._config.subjects, strip_suffixes: this._config.strip_suffixes }), nimi);
+        const malli = wilmaModel(tila, nyt, { subjects: this._config.subjects, strip_suffixes: this._config.strip_suffixes, pinned: this._config.pinned });
+        const palvelu = !!(this._hass.services && this._hass.services.wilma && this._hass.services.wilma.get_message);
+        this.shadowRoot.innerHTML = piirra(malli, nimi, { palvelu, auki: this._auki, viestit: this._viestit });
+        this._viimeistele(malli, palvelu);
       } catch (err) {
         this.shadowRoot.innerHTML = `<ha-card style="padding:16px">Wilma-kortti: ${esc(err && err.message)}</ha-card>`;
         throw err;
+      }
+    }
+
+    /** Piirron jälkeen: luettujen viestien esikatselut, turhat painikkeet pois, kohdistus takaisin. */
+    _viimeistele(malli, palvelu) {
+      // Lukematonta ei haeta itsestään, koska haku merkitsee sen Wilmassa luetuksi.
+      if (palvelu) for (const v of malli.kiinnitetyt) if (v.id && !v.lukematon && !this._viestit.has(v.id)) this._haeViesti(v.id, false);
+      for (const el of this.shadowRoot.querySelectorAll('.viesti.supistettu')) {
+        const nappi = this.shadowRoot.querySelector(`button[data-toiminto="vaihda"][data-id="${el.dataset.viesti}"]`);
+        // Koko viesti mahtuu esikatseluun eikä vastauksia ole: laajennusta ei tarvita.
+        if (nappi && nappi.dataset.vastauksia === '0' && el.scrollHeight <= el.clientHeight + 1) nappi.hidden = true;
+      }
+      if (this._kohdistus) {
+        const kohde = this.shadowRoot.querySelector(this._kohdistus);
+        if (kohde && !kohde.hidden) kohde.focus({ preventScroll: true });
+        this._kohdistus = null;
       }
     }
 
@@ -725,4 +861,4 @@ if (typeof HTMLElement !== 'undefined' && typeof customElements !== 'undefined')
   console.info(`%c WILMA-CARD %c ${VERSION} `, 'background:#D9F24B;color:#15170A;font-weight:700', 'background:#333;color:#fff');
 }
 
-export { wilmaModel, piirra, aine, erotaAine, ainelistat, ratkaise, slug };
+export { wilmaModel, piirra, aine, erotaAine, ainelistat, ratkaise, slug, linkitetty };

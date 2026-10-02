@@ -52,6 +52,7 @@ lisätään YAML-näkymässä.
 | `child` | Lapsen nimi tekstinä `device`-asetuksen sijaan, esim. `Aino Esimerkki`. |
 | `subjects` | Koulun omat ainekoodit, joita kortti ei tunnista valmiiksi. |
 | `strip_suffixes` | Tunnisteet, jotka poistetaan tuntimerkinnän lopusta. |
+| `pinned` | Kiinnitetyt Wilma-viestit. Ks. [Kiinnitetyt viestit](#kiinnitetyt-viestit). |
 
 ```yaml
 type: custom:wilma-card
@@ -62,10 +63,37 @@ strip_suffixes:
   - XYZ        # "Kotitehtävät tekemättä, XYZ" näkyy muodossa "Kotitehtävät tekemättä"
 ```
 
+## Kiinnitetyt viestit
+
+Viestin voi kiinnittää näkyviin aikajanan alle. `pinned` on lista sääntöjä:
+
+```yaml
+type: custom:wilma-card
+pinned:
+  - subject: Liikunta          # uusin viesti, jonka otsikossa on "liikunta"
+  - sender: Esimerkki          # uusin viesti tältä lähettäjältä
+  - subject: Retki
+    sender: Esimerkki          # molempien ehtojen pitää täyttyä
+  - id: 1234567                # yksittäinen viesti, pysyy kunnes poistat rivin
+```
+
+Sääntö kiinnittää aina uusimman siihen sopivan viestin, joten esimerkiksi viikoittainen
+viesti vaihtuu itsestään. Kirjainkoolla ei ole väliä. Viestin `id` löytyy
+**Uudet viestit** -sensorin `messages`-attribuutista.
+
+Viestin teksti näkyy kolmen rivin esikatseluna, ja **Näytä lisää** avaa koko viestin
+vastauksineen. Lukemattomalla viestillä on painike **Lue viesti**: sisältö haetaan vasta
+siitä, koska Wilma merkitsee viestin luetuksi, kun sen sisältö haetaan.
+
+Viestin sisältö tarvitsee Wilma-integraatiolta toiminnon `wilma.get_message` ja sensorin
+`messages`-attribuutin. Ilman niitä kortti kiinnittää otsikon, lähettäjän ja päivän, ja
+säännöt etsivät viestiä integraation kymmenestä uusimmasta viestistä.
+
 ## Mitä kortti näyttää
 
 - **Koulupäivä.** Koulupäivän aikana kuluva päivä, sen jälkeen seuraava koulupäivä.
   Tunnit ovat kestonsa korkuisia ja tauot näkyvät niiden väleinä. Käynnissä oleva tunti on merkitty.
+- **Kiinnitetyt viestit**, jos niitä on asetettu.
 - **Läksyt tänään.** Näkyy siihen asti, kun aineen tunti alkaa.
 - **Läksyt huomiseksi** ja **myöhemmin.** Palautuspäivä on aineen seuraava tunti.
   Viikkorivillä neliö on läksy ja rengas koe.

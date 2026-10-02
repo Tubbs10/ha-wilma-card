@@ -1,7 +1,7 @@
 // Aja: node --test test/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { wilmaModel, piirra, aine, erotaAine, ratkaise, slug } from '../dist/wilma-card.js';
+import { wilmaModel, piirra, aine, erotaAine, ratkaise, slug, linkitetty } from '../dist/wilma-card.js';
 
 // Keksitty oppilas. Viikko: ma MA+ENA1, ti YM, ke MA (ke 7.10.2026 on keskiviikko).
 const sensorit = (lisa = {}) => {
@@ -157,4 +157,78 @@ test('väärä laite antaa selkeän virheen', () => {
   // Yhden lapsen tilillä tilin laite kelpaa.
   delete h.devices.d2;
   assert.equal(ratkaise(h, { device: 'tili' }).laite.id, 'd1');
+});
+
+// Viestit tunnisteineen, kuten integraation messages-attribuutissa (keksitty data).
+const viestit = (lista) => sensorit({ uudet_viestit: { state: '1', attributes: { messages: lista } } });
+const LISTA = [
+  { id: 30, timestamp: '2026-10-04 18:00', subject: 'Liikunta vk 41', sender: 'Olli Esimerkki (OE)', unread: false },
+  { id: 40, timestamp: '2026-10-05 09:00', subject: 'Retkipäivä perjantaina', sender: 'Aila Opettaja (AO)', unread: true },
+  { id: 20, timestamp: '2026-09-27 18:00', subject: 'Liikunta vk 40', sender: 'Olli Esimerkki (OE)', unread: false },
+  { id: 10, timestamp: '2026-09-20 12:00', subject: 'Vanhempainilta', sender: 'Aila Opettaja (AO)', unread: false },
+];
+
+test('kiinnityssääntö poimii uusimman sopivan viestin, tunniste yksittäisen', () => {
+  const m = (pinned) => wilmaModel(viestit(LISTA), ma(16), { pinned }).kiinnitetyt.map((v) => v.id);
+  assert.deepEqual(m(undefined), []);
+  // Sääntö: uusin "liikunta"-viesti, ei vanhempaa. Kirjainkoko ei vaikuta.
+  assert.deepEqual(m([{ subject: 'liikunta' }]), [30]);
+  assert.deepEqual(m(['LIIKUNTA']), [30]);
+  assert.deepEqual(m([{ sender: 'aila' }]), [40]);
+  assert.deepEqual(m([{ sender: 'aila', subject: 'vanhempain' }]), [10]);
+  // Yksittäinen viesti tunnisteella pysyy, vaikka uudempia tulisi.
+  assert.deepEqual(m([{ id: 20 }]), [20]);
+  // Järjestys on sääntöjen järjestys, sama viesti vain kerran, tyhjä sääntö ohitetaan.
+  assert.deepEqual(m([{ id: 10 }, { subject: 'liikunta' }, { sender: 'olli' }, {}, { subject: 'ei löydy' }]), [10, 30]);
+  const v = wilmaModel(viestit(LISTA), ma(16), { pinned: ['retki'] }).kiinnitetyt[0];
+  assert.equal(v.lukematon, true);
+  assert.equal(v.paivays, 'tänään');
+  assert.equal(v.paiva.getDate(), 5);
+});
+
+test('ilman messages-attribuuttia kiinnitys toimii otsikolla, mutta ilman tunnistetta', () => {
+  const m = wilmaModel(sensorit(), ma(16), { pinned: ['liikunta'] });
+  assert.equal(m.kiinnitetyt.length, 1);
+  assert.equal(m.kiinnitetyt[0].otsikko, 'Liikunta vk 41');
+  assert.equal(m.kiinnitetyt[0].id, null);
+  assert.equal(m.kiinnitetyt[0].lukematon, true);
+  // Ei tunnistetta eikä palvelua: pelkkä otsikko, ei painiketta.
+  assert.ok(!piirra(m, 'Testi', { palvelu: true }).includes('data-toiminto'));
+});
+
+test('kiinnitetyn viestin tilat: painike, lataus, esikatselu, avattu, virhe', () => {
+  const m = wilmaModel(viestit(LISTA), ma(16), { pinned: [{ id: 30 }] });
+  const html = (ui) => piirra(m, 'Testi', { palvelu: true, auki: new Set(), viestit: new Map(), ...ui });
+  assert.match(html({}), /<h2 class="disp">Kiinnitetyt<\/h2>/);
+  assert.match(html({}), /data-toiminto="hae" data-id="30">Lue viesti</);
+  // Integraatio ilman wilma.get_message-palvelua: ei painiketta.
+  assert.ok(!html({ palvelu: false }).includes('data-toiminto'));
+  assert.match(html({ viestit: new Map([[30, { tila: 'ladataan' }]]) }), /Haetaan viestiä/);
+  const ok = new Map([[30, { tila: 'ok', sisalto: 'Rivi 1\n\nRivi 2', vastaukset: [{ sender: 'Huoltaja', timestamp: '2026-10-04 19:00', content: 'Kiitos' }] }]]);
+  const kiinni = html({ viestit: ok });
+  assert.match(kiinni, /class="viesti supistettu" data-viesti="30">Rivi 1\nRivi 2</);
+  assert.match(kiinni, /aria-expanded="false">Näytä lisää</);
+  assert.ok(!kiinni.includes('Kiitos'));
+  const avattu = html({ viestit: ok, auki: new Set([30]) });
+  // Avattuna kappalevälit säilyvät, esikatselussa ne on tiivistetty.
+  assert.match(avattu, /class="viesti" data-viesti="30">Rivi 1\n\nRivi 2</);
+  assert.match(avattu, /aria-expanded="true">Näytä vähemmän</);
+  assert.match(avattu, /Huoltaja · 2026-10-04 19:00<\/span>Kiitos/);
+  assert.match(html({ viestit: new Map([[30, { tila: 'virhe', virhe: 'aikakatkaisu' }]]) }), /haku epäonnistui: aikakatkaisu.*Yritä uudelleen/s);
+  // Lukematon on merkitty.
+  const uusi = piirra(wilmaModel(viestit(LISTA), ma(16), { pinned: ['retki'] }), 'Testi', { palvelu: true });
+  assert.match(uusi, /Retkipäivä perjantaina<span class="hl uusi">lukematon<\/span>/);
+});
+
+test('viestin teksti escapataan ja vain http-osoitteet linkitetään', () => {
+  assert.equal(linkitetty('<img src=x onerror=alert(1)>'), '&lt;img src=x onerror=alert(1)&gt;');
+  assert.equal(
+    linkitetty('Katso https://example.com/a?b=1&c=2. Kiitos'),
+    'Katso <a href="https://example.com/a?b=1&amp;c=2" target="_blank" rel="noopener noreferrer">https://example.com/a?b=1&amp;c=2</a>. Kiitos',
+  );
+  assert.ok(!linkitetty('javascript:alert(1) ja "https://x.fi/"').includes('href="javascript'));
+  assert.match(linkitetty('(https://example.com/ohje)'), /href="https:\/\/example\.com\/ohje"[^>]*>https:\/\/example\.com\/ohje<\/a>\)/);
+  const m = wilmaModel(viestit(LISTA), ma(16), { pinned: [{ id: 30 }] });
+  const paha = new Map([[30, { tila: 'ok', sisalto: '<script>alert(1)</script>', vastaukset: [] }]]);
+  assert.ok(!piirra(m, 'Testi', { palvelu: true, viestit: paha }).includes('<script>'));
 });
