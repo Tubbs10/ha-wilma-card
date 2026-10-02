@@ -14,7 +14,7 @@ Kortti lukee Wilma-integraation sensoreita. Asenna integraatio ensin ja lisää 
 
 | Integraatio | Kortin ominaisuudet |
 |---|---|
-| [Tubbs10/ha-wilma](https://github.com/Tubbs10/ha-wilma) 1.2.12 tai uudempi | Kaikki |
+| [Tubbs10/ha-wilma](https://github.com/Tubbs10/ha-wilma) 1.2.13 tai uudempi | Kaikki |
 | [mniittymaki/ha-wilma](https://github.com/mniittymaki/ha-wilma) 1.2.10 | Kaikki paitsi alla luetellut |
 
 [![Avaa integraatio HACSissa](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Tubbs10&repository=ha-wilma&category=integration)
@@ -27,6 +27,8 @@ Alkuperäisen integraation (mniittymaki/ha-wilma) kanssa puuttuvat:
   ei saa tuntimerkinnän päivämäärää. Kortti näyttää huomautuksista viimeisen viikon merkinnät,
   joten päiväämätön merkintä jää pois.
 - **Aiemmat huomautukset.** Viikkoa vanhemmat huomautukset avattavana listana.
+- **Päivätty lukujärjestys.** Kun lukujärjestys vaihtuu jakson vaihtuessa, alkuperäisen
+  integraation kanssa samaan aikaan voi näkyä kaksi tuntia: vanhan ja uuden jakson.
 
 ## Asennus
 

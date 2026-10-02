@@ -15,7 +15,7 @@
  * ks. test/model.test.mjs.
  */
 
-const VERSION = '1.0.3';
+const VERSION = '1.0.4';
 
 // Oppiaineet: [koodin alku tai sana nimessä, nimi]. Myöhempi osuma voittaa.
 const KOODIT = [
@@ -147,12 +147,22 @@ function wilmaModel(s, nyt, asetukset = {}) {
   const nytMin = nyt.getHours() * 60 + nyt.getMinutes();
   const milloin = (d) => (sama(d, tanaan) ? 'tänään' : sama(d, lisaa(tanaan, 1)) ? 'huomenna' : lyhyt(d));
 
-  /* Lukujärjestys. Viikko: "viikonpäivä · alku · loppu · aine · opettaja · luokka". */
+  /*
+   * Lukujärjestys. Viikko: "viikonpäivä · alku · loppu · aine · opettaja · luokka".
+   * Jos integraatio antaa schedule-attribuutin, tunnilla on päivät, joina se pidetään:
+   * jakson vaihtuessa samassa viikkopaikassa on kaksi tuntia, ja päivä ratkaisee kumpi.
+   */
   const viikko = rivit(s('seuraava_tunti'), 'lesson_').map(osat);
+  const paivatyt = s('seuraava_tunti') && s('seuraava_tunti').attributes && Array.isArray(s('seuraava_tunti').attributes.schedule)
+    ? s('seuraava_tunti').attributes.schedule : null;
+  const tunnitPaivana = (d) => (paivatyt
+    ? paivatyt.filter((l) => (Array.isArray(l.dates) && l.dates.length ? l.dates.includes(iso(d)) : String(l.day) === isoVp(d)))
+      .map((l) => [isoVp(d), l.start, l.end, l.subject, l.teacher, l.room].map((x) => String(x || '')))
+    : viikko.filter((t) => t[0] === isoVp(d)));
   let seur = null;
   for (let i = 1; i < 8 && !seur; i++) {
     const d = lisaa(tanaan, i);
-    if (viikko.some((t) => t[0] === isoVp(d))) seur = d;
+    if (tunnitPaivana(d).length) seur = d;
   }
   const tila = s('tanaan') ? String(s('tanaan').state) : '';
   const loppu = tila.includes(SEP) ? tila.split(SEP).pop() : '';
@@ -161,7 +171,7 @@ function wilmaModel(s, nyt, asetukset = {}) {
 
   let raaka = [];
   if (kesken) raaka = rivit(s('tanaan'), 'lesson_').map(osat);
-  else if (nayta) raaka = viikko.filter((o) => o[0] === isoVp(nayta)).map((o) => o.slice(1));
+  else if (nayta) raaka = tunnitPaivana(nayta).map((o) => o.slice(1));
   // Luokka = viimeinen lisätieto, jossa on numero.
   const tunnit = raaka.map((o) => {
     let luokka = '';
@@ -230,7 +240,7 @@ function wilmaModel(s, nyt, asetukset = {}) {
    * Läksyt. Palautuspäivä lasketaan itse: seuraava saman aineen tunti antopäivän jälkeen.
    * Jos ainetta ei tunnisteta, käytetään integraation vihjettä "lukujärjestys ENA1 ke 30.9. 10:30".
    */
-  const ainepaivat = viikko.filter((t) => t.length > 3).map((t) => [t[0], aine(t[3], al)]).filter(([, a]) => a.known);
+  const onAinetta = (d, nimi) => tunnitPaivana(d).some((t) => t.length > 3 && t[3] && aine(t[3], al).known && aine(t[3], al).nimi === nimi);
   const aktiiviset = new Set(rivit(s('aktiiviset_laksyt'), 'hw_').map((v) => osat(v).slice(0, 3).join(SEP)));
   const laksyt = { tanaan: [], seur: [], muut: [] };
   for (const v of rivit(s('kaikki_laksyt'), 'hw_')) {
@@ -248,10 +258,9 @@ function wilmaModel(s, nyt, asetukset = {}) {
     let era = null;
     let oma = false;
     if (ha.known && annettu) {
-      const paivat = ainepaivat.filter(([, a]) => a.nimi === ha.nimi).map(([p]) => p);
-      for (let i = 1; i < 15 && !era && paivat.length; i++) {
+      for (let i = 1; i < 15 && !era; i++) {
         const d = lisaa(annettu, i);
-        if (paivat.includes(isoVp(d))) { era = d; oma = true; }
+        if (onAinetta(d, ha.nimi)) { era = d; oma = true; }
       }
     }
     if (!oma) {
@@ -296,7 +305,7 @@ function wilmaModel(s, nyt, asetukset = {}) {
   const rivinAlku = kesken ? tanaan : seur;
   for (let i = 0, myohempia = 0; rivinAlku && i < 15 && myohempia < VIIKKORIVIN_PAIVAT; i++) {
     const d = lisaa(rivinAlku, i);
-    if (i > 0 && !viikko.some((t) => t[0] === isoVp(d))) continue;
+    if (i > 0 && !tunnitPaivana(d).length) continue;
     if (!seur || d > seur) myohempia++;
     viikkorivi.push({
       pv: PV[vp(d)], pvm: `${d.getDate()}.`, nyt: sama(d, tanaan),

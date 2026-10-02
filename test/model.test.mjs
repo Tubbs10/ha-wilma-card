@@ -350,3 +350,26 @@ test('moitteet: tuoreet Huomioissa, vanhemmat avattavassa listassa', () => {
   assert.equal(vanha.huomiot.find((o) => o.otsikko === 'Huomautukset').rivit[0].teksti, 'Kotitehtävät tekemättä · x');
   assert.ok(!piirra(vanha, 'Aino', {}).includes('data-toiminto="moitteet"'));
 });
+
+test('päivätty lukujärjestys: jakson vaihtuessa näkyy vain päivän oma tunti', () => {
+  // Maanantain viikkopaikassa on kaksi tuntia: ENA1 lokakuun alussa, MU 19.10. alkaen.
+  const perus = sensorit()('seuraava_tunti');
+  const schedule = [
+    { day: 1, start: '08:15', end: '09:15', subject: 'MA', teacher: 'OPE', room: '3B:A101', dates: ['2026-10-05', '2026-10-19'] },
+    { day: 1, start: '09:30', end: '10:30', subject: 'ENA1', teacher: 'OPE', room: 'Kielistudio:B2', dates: ['2026-10-05'] },
+    { day: 1, start: '09:30', end: '10:30', subject: 'MU', teacher: 'OPE', room: '3B:A101', dates: ['2026-10-19'] },
+    { day: 2, start: '08:15', end: '09:15', subject: 'YM', teacher: 'OPE', room: '3B:A101', dates: [] },
+  ];
+  const lisa = { seuraava_tunti: { state: 'x', attributes: { ...perus.attributes, schedule } } };
+  const su = (pv) => new Date(2026, 9, pv, 12);
+  assert.deepEqual(wilmaModel(sensorit(lisa), su(4)).paiva.tunnit.map((t) => t.aine), ['Matematiikka', 'Englanti']);
+  assert.deepEqual(wilmaModel(sensorit(lisa), su(18)).paiva.tunnit.map((t) => t.aine), ['Matematiikka', 'Musiikki']);
+  // Päivätön tunti kulkee viikonpäivän mukaan; päivä ilman tunteja ei ole koulupäivä.
+  const ma = wilmaModel(sensorit(lisa), new Date(2026, 9, 5, 16));
+  assert.equal(ma.paiva.paivays, 'tiistai 6.10.');
+  const ti = wilmaModel(sensorit(lisa), new Date(2026, 9, 6, 16));
+  assert.equal(`${ti.paiva.otsikko} ${ti.paiva.paivays}`, 'Tiistai 13.10.');
+  // Läksyn palautuspäivä on aineen seuraava tunti päivättynä: ENA1 28.9. -> 5.10., ei enää 12.10.
+  const laksy = { kaikki_laksyt: { state: '1', attributes: { hw_1: '2026-10-05 · Englanti, A1 · Sanat' } }, aktiiviset_laksyt: { state: '0', attributes: {} } };
+  assert.deepEqual(wilmaModel(sensorit({ ...lisa, ...laksy }), new Date(2026, 9, 5, 16)).laksyt.muut, []);
+});
