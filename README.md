@@ -14,7 +14,7 @@ Kortti lukee Wilma-integraation sensoreita. Asenna integraatio ensin ja lisää 
 
 | Integraatio | Kortin ominaisuudet |
 |---|---|
-| [Tubbs10/ha-wilma](https://github.com/Tubbs10/ha-wilma) 1.2.11 tai uudempi | Kaikki |
+| [Tubbs10/ha-wilma](https://github.com/Tubbs10/ha-wilma) 1.2.12 tai uudempi | Kaikki |
 | [mniittymaki/ha-wilma](https://github.com/mniittymaki/ha-wilma) 1.2.10 | Kaikki paitsi alla luetellut |
 
 [![Avaa integraatio HACSissa](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Tubbs10&repository=ha-wilma&category=integration)
@@ -26,6 +26,7 @@ Alkuperäisen integraation (mniittymaki/ha-wilma) kanssa puuttuvat:
 - **Kehun päivämäärä ja huomautukset** kouluissa, joiden Wilmasta alkuperäinen integraatio
   ei saa tuntimerkinnän päivämäärää. Kortti näyttää huomautuksista viimeisen viikon merkinnät,
   joten päiväämätön merkintä jää pois.
+- **Aiemmat huomautukset.** Viikkoa vanhemmat huomautukset avattavana listana.
 
 ## Asennus
 
@@ -122,6 +123,8 @@ Osio käyttää integraation [Tubbs10/ha-wilma](https://github.com/Tubbs10/ha-wi
   tiedotteet. Osio näkyy, kun siinä on sisältöä.
 - **Arvosanat** viimeiseltä viikolta.
 - **Kehut** päivämäärän, aineen ja opettajan kanssa.
+- **Aiemmat huomautukset.** Viikkoa vanhemmat huomautukset ovat yhden rivin takana ja
+  aukeavat painamalla.
 - **Viestit.** Kiinnitetyt viestit ja avattava lista uusimmista viesteistä.
 
 Keltavihreä korostus kertoo, mikä on seuraavaksi edessä. Muut värit tulevat Home Assistantin

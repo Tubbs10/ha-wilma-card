@@ -311,3 +311,28 @@ test('kehut eriteltyinä: päivä vasemmalla, opettaja näkyvissä', () => {
   const vanha = piirra(wilmaModel(sensorit(), ma(16)), 'Testi');
   assert.match(vanha, /<div class="kisko"><div><\/div><div class="sis"><span class="nimi">Hyvä tunti<\/span><span class="meta sec">Liikunta · Ope Olli</);
 });
+
+test('moitteet: tuoreet Huomioissa, vanhemmat avattavassa listassa', () => {
+  const moitteet = { state: '2', attributes: { notes: [
+    { date: '2026-10-02', kind: 'Kotitehtävät tekemättä, XYZ', subject: 'ENA1', teacher: 'Ope Olli', text: 'Sanat' },
+    { date: '2026-09-10', kind: 'Opiskeluvälineet puuttuvat', subject: 'MA', teacher: 'Liisa Malli', text: '' },
+  ] } };
+  const m = wilmaModel(sensorit({ moitteet }), ma(16), { strip_suffixes: ['XYZ'] });
+  const tuoreet = m.huomiot.find((o) => o.otsikko === 'Huomautukset');
+  assert.deepEqual(tuoreet.rivit.map((r) => [r.aine, r.teksti]), [['Englanti', 'Kotitehtävät tekemättä · Sanat']]);
+  assert.deepEqual(m.aiemmatMoitteet.map((r) => [r.aine, r.teksti, r.pv]), [['Matematiikka', 'Opiskeluvälineet puuttuvat', '2026-09-10']]);
+
+  const kiinni = piirra(m, 'Aino', {});
+  assert.match(kiinni, /data-toiminto="moitteet" aria-expanded="false">Aiemmat huomautukset \(1\)</);
+  assert.ok(!kiinni.includes('Opiskeluvälineet puuttuvat'));
+  assert.ok(kiinni.indexOf('Aiemmat huomautukset') < kiinni.indexOf('Viestit</h2>') || !kiinni.includes('Viestit'));
+  const auki = piirra(m, 'Aino', { moitteet: true });
+  assert.ok(auki.includes('Piilota aiemmat huomautukset') && auki.includes('Opiskeluvälineet puuttuvat'));
+  assert.ok(!auki.includes('Liisa Malli'));
+
+  // Ilman notes-attribuuttia (alkuperäinen integraatio) toimitaan kuten ennen.
+  const vanha = wilmaModel(sensorit({ moitteet: { state: '1', attributes: { item_1: 'x' } } }), ma(16), { strip_suffixes: ['XYZ'] });
+  assert.deepEqual(vanha.aiemmatMoitteet, []);
+  assert.equal(vanha.huomiot.find((o) => o.otsikko === 'Huomautukset').rivit[0].teksti, 'Kotitehtävät tekemättä · x');
+  assert.ok(!piirra(vanha, 'Aino', {}).includes('data-toiminto="moitteet"'));
+});
