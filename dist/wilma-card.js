@@ -46,6 +46,8 @@ const TUOREET_PV = 7; // arvosanat, huomautukset ja tiedotteet näin monelta pä
 const KOKEET_LAHIAIKA_PV = 14;
 const ENINTAAN = 5;
 const VIIKKORIVIN_PAIVAT = 4;
+const ESIKATSELU_RIVIT = 3; // viestin esikatselun rivit (sama kuin tyylin line-clamp)
+const ESIKATSELU_MERKIT = 100; // tätä pidempi teksti ei varmasti mahdu kolmelle riville kapealla näytöllä
 
 /* ---------- apufunktiot ---------- */
 
@@ -386,28 +388,38 @@ function wilmaModel(s, nyt, asetukset = {}) {
     arvosana: o[2] || '', aine: aine(o[1] || '', al).nimi, kuvaus: o.slice(3).join(SEP), paivays: pvm(o[0]),
   }));
 
-  /* Kehut: "2026-09-28 · tyyppi · aine · teksti" tai ilman päivää "LI09; teksti /Opettaja". */
+  /*
+   * Kehut. Eriteltyinä sensorin notes-attribuutista (päivä, laji, aine, opettaja, teksti);
+   * ilman sitä riveistä "2026-09-28 · tyyppi · aine · teksti" tai "LI09; teksti /Opettaja".
+   */
   const maanantai = iso(lisaa(tanaan, -vp(tanaan)));
-  let kehujaViikolla = 0;
-  const kehut = rivit(s('kehut'), 'item_').map((v) => {
-    const o = osat(v);
-    let kentat;
-    let opettaja = '';
-    let p = '';
-    if (isoPaiva(o[0])) {
-      p = o[0];
-      kentat = o.length >= 4 ? o.slice(2) : o.slice(1);
-      if (p.slice(0, 10) >= maanantai) kehujaViikolla++;
-    } else {
-      let teksti = v;
-      const i = teksti.lastIndexOf(' /');
-      if (i >= 0) { opettaja = teksti.slice(i + 2).trim(); teksti = teksti.slice(0, i); }
-      const j = teksti.indexOf(';');
-      kentat = j >= 0 ? [teksti.slice(0, j).trim(), teksti.slice(j + 1).trim()] : [teksti];
-    }
-    const e = erotaAine(kentat, al);
-    return { aine: e.aine, teksti: e.muut.join(SEP), opettaja, paivays: p ? pvm(p) : '' };
-  });
+  const kehusensori = s('kehut');
+  const eritellyt = kehusensori && kehusensori.attributes && Array.isArray(kehusensori.attributes.notes)
+    ? kehusensori.attributes.notes : null;
+  const kehut = eritellyt
+    ? eritellyt.map((n) => {
+      const a = aine(n.subject || '', al);
+      return {
+        otsikko: String(n.kind || n.text || ''), teksti: n.kind ? String(n.text || '') : '',
+        aine: a.known ? a.nimi : String(n.subject || ''), opettaja: String(n.teacher || ''), paiva: isoPaiva(n.date),
+      };
+    })
+    : rivit(kehusensori, 'item_').map((v) => {
+      const o = osat(v);
+      let kentat;
+      let opettaja = '';
+      if (isoPaiva(o[0])) kentat = o.length >= 4 ? o.slice(2) : o.slice(1);
+      else {
+        let teksti = v;
+        const i = teksti.lastIndexOf(' /');
+        if (i >= 0) { opettaja = teksti.slice(i + 2).trim(); teksti = teksti.slice(0, i); }
+        const j = teksti.indexOf(';');
+        kentat = j >= 0 ? [teksti.slice(0, j).trim(), teksti.slice(j + 1).trim()] : [teksti];
+      }
+      const e = erotaAine(kentat, al);
+      return { otsikko: e.muut.join(SEP) || e.aine, teksti: '', aine: e.muut.length ? e.aine : '', opettaja, paiva: isoPaiva(o[0]) };
+    });
+  const kehujaViikolla = kehut.filter((k) => k.paiva && iso(k.paiva) >= maanantai).length;
 
   return {
     tanaan, kesken, seur,
@@ -503,7 +515,6 @@ h2 { margin: 0; font-size: 28px; line-height: 1.1; }
 
 .arvosana { align-items: center; }
 .arvosana > b { font-size: 44px; line-height: 1; letter-spacing: -0.03em; }
-.kehu .teksti-iso { font-size: 22px; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; }
 .ryhma { font-size: 14px; font-weight: 500; }
 .kiinni .viesti { font-size: 14px; line-height: 1.5; opacity: 0.85; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 4px; }
 .kiinni .viesti.supistettu { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
@@ -555,47 +566,6 @@ function piirra(m, nimi, ui = {}) {
   }
   for (const k of m.koeHalytykset) {
     h.push(`<div class="kisko koe-halytys"><div></div><div><span class="hl">Koe ${esc(k.milloin)}</span> ${esc(k.aine)}${k.kuvaus ? ` · ${esc(k.kuvaus)}` : ''}</div></div>`);
-  }
-
-  /*
-   * Viestit: kiinnitetyt aina näkyvissä, muut avattavassa listassa. Painikkeet tarvitsevat
-   * integraatiolta toiminnot (ui.palvelu: wilma.get_message, ui.kiinnitys: wilma.pin_message).
-   */
-  const viesti = (v) => {
-    const d = v.id ? haetut.get(v.id) : null;
-    const avattu = v.id && auki.has(v.id);
-    const napit = [];
-    let runko = '';
-    if (d && d.tila === 'ok') {
-      const vastaukset = avattu ? d.vastaukset.map((r) => `<div class="viesti vastaus"><span class="meta sec">${[r.sender, r.timestamp].filter(Boolean).map(esc).join(' · ')}</span>${linkitetty(r.content)}</div>`).join('') : '';
-      // Esikatselussa tyhjät rivit pois, jotta kolmelle riville mahtuu sisältöä.
-      const teksti = avattu ? d.sisalto : d.sisalto.replace(/\n\s*\n+/g, '\n');
-      runko = `<div class="viesti${avattu ? '' : ' supistettu'}" data-viesti="${v.id}">${linkitetty(teksti) || '<span class="sec">Viestissä ei ole tekstiä.</span>'}</div>${vastaukset}`;
-      napit.push(`<button class="linkki" type="button" data-toiminto="vaihda" data-id="${v.id}" data-vastauksia="${d.vastaukset.length}" aria-expanded="${avattu ? 'true' : 'false'}">${avattu ? 'Näytä vähemmän' : 'Näytä lisää'}</button>`);
-    } else if (d && d.tila === 'ladataan') {
-      runko = '<div class="viesti sec">Haetaan viestiä…</div>';
-    } else if (d && d.tila === 'virhe') {
-      runko = `<div class="viesti sec">Viestin haku epäonnistui: ${esc(d.virhe)}</div>`;
-      napit.push(`<button class="linkki" type="button" data-toiminto="hae" data-id="${v.id}">Yritä uudelleen</button>`);
-    } else if (v.id && ui.palvelu) {
-      napit.push(`<button class="linkki" type="button" data-toiminto="hae" data-id="${v.id}">Lue viesti</button>`);
-    }
-    if (v.id && ui.kiinnitys) {
-      if (v.irrotettava) napit.push(`<button class="linkki" type="button" data-toiminto="irrota" data-id="${v.id}">Poista kiinnitys</button>`);
-      else if (!m.kiinnitetyt.includes(v)) napit.push(`<button class="linkki" type="button" data-toiminto="kiinnita" data-id="${v.id}">Kiinnitä</button>`);
-    }
-    return `<div class="kisko kiinni">${era(v.paiva)}<div class="sis"><span class="nimi">${esc(v.otsikko)}${v.lukematon ? '<span class="hl uusi">lukematon</span>' : ''}</span><span class="meta sec">${esc(v.lahettaja)}</span>${runko}${napit.length ? `<div class="napit">${napit.join('')}</div>` : ''}</div></div>`;
-  };
-  const kiinnitetyt = m.kiinnitetyt || [];
-  const muut = (ui.kiinnitys && m.muutViestit) || [];
-  if (kiinnitetyt.length || muut.length) {
-    h.push(osio('Viestit', kiinnitetyt.length ? monikko(kiinnitetyt.length, 'kiinnitetty', 'kiinnitettyä') : ''));
-    if (kiinnitetyt.length) h.push(`<div class="lista">${kiinnitetyt.map(viesti).join('')}</div>`);
-    if (ui.viestivirhe) h.push(`<div class="kisko"><div></div><div class="virhe sec">${esc(ui.viestivirhe)}</div></div>`);
-    if (muut.length) {
-      h.push(`<div class="kisko"><div></div><div class="napit"><button class="linkki" type="button" data-toiminto="lista" aria-expanded="${ui.lista ? 'true' : 'false'}">${ui.lista ? 'Piilota muut viestit' : kiinnitetyt.length ? 'Näytä muut viestit' : 'Näytä viestit'}</button></div></div>`);
-      if (ui.lista) h.push(`<div class="lista">${muut.map(viesti).join('')}</div>`);
-    }
   }
 
   /* Läksyt */
@@ -661,8 +631,53 @@ function piirra(m, nimi, ui = {}) {
   /* Kehut */
   if (m.kehut.rivit.length) {
     h.push(osio('Kehut', m.kehut.viikolla ? `${m.kehut.viikolla} tällä viikolla` : ''));
-    h.push(`<div class="lista">${m.kehut.rivit.map((x) => `<div class="kisko kehu"><div></div><div class="sis"><span class="teksti-iso disp">${esc(x.teksti || x.aine)}</span><span class="meta sec">${[x.teksti ? x.aine : '', x.opettaja, x.paivays].filter(Boolean).map(esc).join(' · ')}</span></div></div>`).join('')}</div>`);
+    h.push(`<div class="lista">${m.kehut.rivit.map((x) => `<div class="kisko">${era(x.paiva)}<div class="sis"><span class="nimi">${esc(x.otsikko)}</span>${x.teksti ? `<span class="teksti">${rivitetty(x.teksti)}</span>` : ''}<span class="meta sec">${[x.aine, x.opettaja].filter(Boolean).map(esc).join(' · ')}</span></div></div>`).join('')}</div>`);
     if (m.kehut.yhteensa > m.kehut.rivit.length) h.push(`<div class="kisko"><div></div><div class="sec" style="font-size:13px">+${m.kehut.yhteensa - m.kehut.rivit.length} lisää Wilmassa</div></div>`);
+  }
+
+  /*
+   * Viestit: kiinnitetyt aina näkyvissä, muut avattavassa listassa. Painikkeet tarvitsevat
+   * integraatiolta toiminnot (ui.palvelu: wilma.get_message, ui.kiinnitys: wilma.pin_message).
+   */
+  const viesti = (v) => {
+    const d = v.id ? haetut.get(v.id) : null;
+    const avattu = v.id && auki.has(v.id);
+    const napit = [];
+    let runko = '';
+    if (d && d.tila === 'ok') {
+      const vastaukset = avattu ? d.vastaukset.map((r) => `<div class="viesti vastaus"><span class="meta sec">${[r.sender, r.timestamp].filter(Boolean).map(esc).join(' · ')}</span>${linkitetty(r.content)}</div>`).join('') : '';
+      // Esikatselussa tyhjät rivit pois, jotta kolmelle riville mahtuu sisältöä.
+      const teksti = avattu ? d.sisalto : d.sisalto.replace(/\n\s*\n+/g, '\n');
+      runko = `<div class="viesti${avattu ? '' : ' supistettu'}">${linkitetty(teksti) || '<span class="sec">Viestissä ei ole tekstiä.</span>'}</div>${vastaukset}`;
+      // Painike vain, jos esikatselu ei näytä kaikkea: yli kolme riviä, pitkä teksti tai vastauksia.
+      const tiivis = d.sisalto.replace(/\n\s*\n+/g, '\n');
+      if (tiivis.split('\n').length > ESIKATSELU_RIVIT || tiivis.length > ESIKATSELU_MERKIT || d.vastaukset.length) {
+        napit.push(`<button class="linkki" type="button" data-toiminto="vaihda" data-id="${v.id}" aria-expanded="${avattu ? 'true' : 'false'}">${avattu ? 'Näytä vähemmän' : 'Näytä lisää'}</button>`);
+      }
+    } else if (d && d.tila === 'ladataan') {
+      runko = '<div class="viesti sec">Haetaan viestiä…</div>';
+    } else if (d && d.tila === 'virhe') {
+      runko = `<div class="viesti sec">Viestin haku epäonnistui: ${esc(d.virhe)}</div>`;
+      napit.push(`<button class="linkki" type="button" data-toiminto="hae" data-id="${v.id}">Yritä uudelleen</button>`);
+    } else if (v.id && ui.palvelu) {
+      napit.push(`<button class="linkki" type="button" data-toiminto="hae" data-id="${v.id}">Lue viesti</button>`);
+    }
+    if (v.id && ui.kiinnitys) {
+      if (v.irrotettava) napit.push(`<button class="linkki" type="button" data-toiminto="irrota" data-id="${v.id}">Poista kiinnitys</button>`);
+      else if (!m.kiinnitetyt.includes(v)) napit.push(`<button class="linkki" type="button" data-toiminto="kiinnita" data-id="${v.id}">Kiinnitä</button>`);
+    }
+    return `<div class="kisko kiinni">${era(v.paiva)}<div class="sis"><span class="nimi">${esc(v.otsikko)}${v.lukematon ? '<span class="hl uusi">lukematon</span>' : ''}</span><span class="meta sec">${esc(v.lahettaja)}</span>${runko}${napit.length ? `<div class="napit">${napit.join('')}</div>` : ''}</div></div>`;
+  };
+  const kiinnitetyt = m.kiinnitetyt || [];
+  const muut = (ui.kiinnitys && m.muutViestit) || [];
+  if (kiinnitetyt.length || muut.length) {
+    h.push(osio('Viestit', kiinnitetyt.length ? monikko(kiinnitetyt.length, 'kiinnitetty', 'kiinnitettyä') : ''));
+    if (kiinnitetyt.length) h.push(`<div class="lista">${kiinnitetyt.map(viesti).join('')}</div>`);
+    if (ui.viestivirhe) h.push(`<div class="kisko"><div></div><div class="virhe sec">${esc(ui.viestivirhe)}</div></div>`);
+    if (muut.length) {
+      h.push(`<div class="kisko"><div></div><div class="napit"><button class="linkki" type="button" data-toiminto="lista" aria-expanded="${ui.lista ? 'true' : 'false'}">${ui.lista ? 'Piilota muut viestit' : kiinnitetyt.length ? 'Näytä muut viestit' : 'Näytä viestit'}</button></div></div>`);
+      if (ui.lista) h.push(`<div class="lista">${muut.map(viesti).join('')}</div>`);
+    }
   }
 
   return `<style>${TYYLIT}</style><ha-card><div class="sivu">${h.join('')}</div></ha-card>`;
@@ -862,18 +877,13 @@ if (typeof HTMLElement !== 'undefined' && typeof customElements !== 'undefined')
       }
     }
 
-    /** Piirron jälkeen: luettujen viestien esikatselut, turhat painikkeet pois, kohdistus takaisin. */
+    /** Piirron jälkeen: luettujen kiinnitettyjen viestien esikatselut ja kohdistus takaisin painikkeeseen. */
     _viimeistele(malli, palvelu) {
       // Lukematonta ei haeta itsestään, koska haku merkitsee sen Wilmassa luetuksi.
       if (palvelu) for (const v of malli.kiinnitetyt) if (v.id && !v.lukematon && !this._viestit.has(v.id)) this._haeViesti(v.id, false);
-      for (const el of this.shadowRoot.querySelectorAll('.viesti.supistettu')) {
-        const nappi = this.shadowRoot.querySelector(`button[data-toiminto="vaihda"][data-id="${el.dataset.viesti}"]`);
-        // Koko viesti mahtuu esikatseluun eikä vastauksia ole: laajennusta ei tarvita.
-        if (nappi && nappi.dataset.vastauksia === '0' && el.scrollHeight <= el.clientHeight + 1) nappi.hidden = true;
-      }
       if (this._kohdistus) {
         const kohde = this.shadowRoot.querySelector(this._kohdistus);
-        if (kohde && !kohde.hidden) kohde.focus({ preventScroll: true });
+        if (kohde) kohde.focus({ preventScroll: true });
         this._kohdistus = null;
       }
     }

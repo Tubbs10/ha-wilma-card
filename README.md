@@ -65,7 +65,7 @@ strip_suffixes:
 
 ## Viestit ja kiinnittäminen
 
-Aikajanan alla on osio **Viestit**. Kiinnitetyt viestit näkyvät siinä aina, ja
+Kortin lopussa on osio **Viestit**. Kiinnitetyt viestit näkyvät siinä aina, ja
 **Näytä viestit** avaa listan uusimmista Wilma-viesteistä.
 
 - **Kiinnitä** nostaa viestin näkyviin, **Poista kiinnitys** laskee sen takaisin listaan.
@@ -98,7 +98,6 @@ Ilman niitä kortti näyttää säännöllä kiinnitetystä viestistä otsikon, 
 
 - **Koulupäivä.** Koulupäivän aikana kuluva päivä, sen jälkeen seuraava koulupäivä.
   Tunnit ovat kestonsa korkuisia ja tauot näkyvät niiden väleinä. Käynnissä oleva tunti on merkitty.
-- **Viestit.** Kiinnitetyt viestit ja avattava lista uusimmista viesteistä.
 - **Läksyt tänään.** Näkyy siihen asti, kun aineen tunti alkaa.
 - **Läksyt huomiseksi** ja **myöhemmin.** Palautuspäivä on aineen seuraava tunti.
   Viikkorivillä neliö on läksy ja rengas koe.
@@ -106,6 +105,7 @@ Ilman niitä kortti näyttää säännöllä kiinnitetystä viestistä otsikon, 
 - **Huomiot.** Lukemattomat Wilma-viestit, selvitettävät tuntimerkinnät, huomautukset ja
   tiedotteet. Osio näkyy, kun siinä on sisältöä.
 - **Arvosanat** viimeiseltä viikolta ja **kehut**.
+- **Viestit.** Kiinnitetyt viestit ja avattava lista uusimmista viesteistä.
 
 Keltavihreä korostus kertoo, mikä on seuraavaksi edessä. Muut värit tulevat Home Assistantin
 teemasta, joten kortti toimii tummassa ja vaaleassa teemassa.
