@@ -5,11 +5,27 @@ Wilma-viestit, arvosanat ja kehut.
 
 <p>
   <img src="docs/kortti-1.png" width="320" alt="Kortin yläosa: koulupäivä aikajanana ja läksyt">
-  <img src="docs/kortti-2.png" width="320" alt="Kortin alaosa: viikkorivi, kokeet, huomiot, arvosanat ja kehut">
+  <img src="docs/kortti-2.png" width="320" alt="Kortin alaosa: kokeet, huomiot, arvosanat, kehut ja viestit">
 </p>
 
-Kortti tarvitsee [ha-wilma](https://github.com/mniittymaki/ha-wilma)-integraation.
-Asenna se ensin ja lisää Wilma-tilisi.
+## Wilma-integraatio
+
+Kortti lukee Wilma-integraation sensoreita. Asenna integraatio ensin ja lisää Wilma-tilisi.
+
+| Integraatio | Kortin ominaisuudet |
+|---|---|
+| [Tubbs10/ha-wilma](https://github.com/Tubbs10/ha-wilma) 1.2.11 tai uudempi | Kaikki |
+| [mniittymaki/ha-wilma](https://github.com/mniittymaki/ha-wilma) 1.2.10 | Kaikki paitsi alla luetellut |
+
+[![Avaa integraatio HACSissa](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Tubbs10&repository=ha-wilma&category=integration)
+
+Alkuperäisen integraation (mniittymaki/ha-wilma) kanssa puuttuvat:
+
+- **Viestit-osio:** viestien lukeminen kortissa ja kiinnittäminen. Asetuksen `pinned` säännöllä
+  kiinnitetystä viestistä näkyy otsikko, lähettäjä ja päivä.
+- **Kehun päivämäärä ja huomautukset** kouluissa, joiden Wilmasta alkuperäinen integraatio
+  ei saa tuntimerkinnän päivämäärää. Kortti näyttää huomautuksista viimeisen viikon merkinnät,
+  joten päiväämätön merkintä jää pois.
 
 ## Asennus
 
@@ -52,6 +68,7 @@ lisätään YAML-näkymässä.
 | `child` | Lapsen nimi tekstinä `device`-asetuksen sijaan, esim. `Aino Esimerkki`. |
 | `subjects` | Koulun omat ainekoodit, joita kortti ei tunnista valmiiksi. |
 | `strip_suffixes` | Tunnisteet, jotka poistetaan tuntimerkinnän lopusta. |
+| `pinned` | Säännöt, joilla Wilma-viesti kiinnitetään. Ks. [Viestit ja kiinnittäminen](#viestit-ja-kiinnittäminen). |
 
 ```yaml
 type: custom:wilma-card
@@ -61,6 +78,37 @@ subjects:
 strip_suffixes:
   - XYZ        # "Kotitehtävät tekemättä, XYZ" näkyy muodossa "Kotitehtävät tekemättä"
 ```
+
+## Viestit ja kiinnittäminen
+
+Kortin lopussa on osio **Viestit**. Kiinnitetyt viestit näkyvät siinä aina, ja
+**Näytä viestit** avaa listan uusimmista Wilma-viesteistä.
+
+- **Kiinnitä** nostaa viestin näkyviin, **Poista kiinnitys** laskee sen takaisin listaan.
+  Kiinnitys tallentuu Wilma-integraatioon, joten se näkyy kaikilla laitteilla ja käyttäjillä.
+- Viestin teksti näkyy kolmen rivin esikatseluna, ja **Näytä lisää** avaa koko viestin
+  vastauksineen.
+- Lukemattomalla viestillä ja listan viesteillä on painike **Lue viesti**: sisältö haetaan
+  vasta siitä, koska Wilma merkitsee viestin luetuksi, kun sen sisältö haetaan.
+
+Toistuvan viestin voi kiinnittää säännöllä kortin asetuksissa. Sääntö näyttää aina uusimman
+siihen sopivan viestin, joten esimerkiksi viikoittainen viesti vaihtuu itsestään:
+
+```yaml
+type: custom:wilma-card
+pinned:
+  - subject: Liikunta          # uusin viesti, jonka otsikossa on "liikunta"
+  - sender: Esimerkki          # uusin viesti tältä lähettäjältä
+  - subject: Retki
+    sender: Esimerkki          # molempien ehtojen pitää täyttyä
+  - id: 1234567                # yksittäinen viesti, pysyy kunnes poistat rivin
+```
+
+Kirjainkoolla ei ole väliä. Säännöllä kiinnitetty viesti poistetaan poistamalla sääntö.
+
+Osio käyttää integraation [Tubbs10/ha-wilma](https://github.com/Tubbs10/ha-wilma) toimintoja
+`wilma.get_message`, `wilma.pin_message` ja `wilma.unpin_message` sekä **Uudet viestit**
+-sensorin attribuutteja `messages` ja `pinned`.
 
 ## Mitä kortti näyttää
 
@@ -72,7 +120,9 @@ strip_suffixes:
 - **Kokeet** kahden viikon sisällä ja päivät niihin.
 - **Huomiot.** Lukemattomat Wilma-viestit, selvitettävät tuntimerkinnät, huomautukset ja
   tiedotteet. Osio näkyy, kun siinä on sisältöä.
-- **Arvosanat** viimeiseltä viikolta ja **kehut**.
+- **Arvosanat** viimeiseltä viikolta.
+- **Kehut** päivämäärän, aineen ja opettajan kanssa.
+- **Viestit.** Kiinnitetyt viestit ja avattava lista uusimmista viesteistä.
 
 Keltavihreä korostus kertoo, mikä on seuraavaksi edessä. Muut värit tulevat Home Assistantin
 teemasta, joten kortti toimii tummassa ja vaaleassa teemassa.
