@@ -199,7 +199,7 @@ test('ilman messages-attribuuttia kiinnitys toimii otsikolla, mutta ilman tunnis
 test('kiinnitetyn viestin tilat: painike, lataus, esikatselu, avattu, virhe', () => {
   const m = wilmaModel(viestit(LISTA), ma(16), { pinned: [{ id: 30 }] });
   const html = (ui) => piirra(m, 'Testi', { palvelu: true, auki: new Set(), viestit: new Map(), ...ui });
-  assert.match(html({}), /<h2 class="disp">Kiinnitetyt<\/h2>/);
+  assert.match(html({}), /<h2 class="disp">Viestit<\/h2><span class="sec">1 kiinnitetty</);
   assert.match(html({}), /data-toiminto="hae" data-id="30">Lue viesti</);
   // Integraatio ilman wilma.get_message-palvelua: ei painiketta.
   assert.ok(!html({ palvelu: false }).includes('data-toiminto'));
@@ -231,4 +231,45 @@ test('viestin teksti escapataan ja vain http-osoitteet linkitetään', () => {
   const m = wilmaModel(viestit(LISTA), ma(16), { pinned: [{ id: 30 }] });
   const paha = new Map([[30, { tila: 'ok', sisalto: '<script>alert(1)</script>', vastaukset: [] }]]);
   assert.ok(!piirra(m, 'Testi', { palvelu: true, viestit: paha }).includes('<script>'));
+});
+
+test('kortista kiinnitetyt viestit tulevat integraation pinned-attribuutista', () => {
+  const tila = (pinned) => sensorit({ uudet_viestit: { state: '1', attributes: { messages: LISTA, pinned } } });
+  // Listalta pudonnut kiinnitys näkyy tallennetuilla tiedoilla, listassa oleva tietää lukutilan.
+  const vanha = { id: 5, subject: 'Syksyn retki', sender: 'Aila Opettaja (AO)', timestamp: '2026-08-20 10:00' };
+  const m = wilmaModel(tila([vanha, { id: 40 }]), ma(16), { pinned: ['liikunta', { id: 40 }] });
+  assert.deepEqual(m.kiinnitetyt.map((v) => [v.id, !!v.irrotettava]), [[5, true], [40, true], [30, false]]);
+  assert.equal(m.kiinnitetyt[0].otsikko, 'Syksyn retki');
+  assert.equal(m.kiinnitetyt[0].paivays, 'to 20.8.');
+  assert.equal(m.kiinnitetyt[1].lukematon, true);
+  // Muut viestit: kaikki paitsi kiinnitetyt, uusin ensin.
+  assert.deepEqual(m.muutViestit.map((v) => v.id), [20, 10]);
+});
+
+test('viestilista ja kiinnityspainikkeet', () => {
+  const tila = sensorit({ uudet_viestit: { state: '0', attributes: { messages: LISTA, pinned: [{ id: 10 }] } } });
+  const m = wilmaModel(tila, ma(16), { pinned: ['liikunta'] });
+  const html = (ui) => piirra(m, 'Testi', { palvelu: true, kiinnitys: true, auki: new Set(), viestit: new Map(), ...ui });
+  const kiinni = html({});
+  assert.match(kiinni, /<span class="sec">2 kiinnitettyä</);
+  // Kortista kiinnitetyn voi irrottaa, asetuksen säännöllä kiinnitettyä ei.
+  assert.match(kiinni, /data-toiminto="irrota" data-id="10">Poista kiinnitys</);
+  assert.ok(!kiinni.includes('data-toiminto="irrota" data-id="30"'));
+  assert.ok(!kiinni.includes('data-toiminto="kiinnita" data-id="30"'));
+  // Muut viestit ovat piilossa, kunnes lista avataan.
+  assert.match(kiinni, /data-toiminto="lista" aria-expanded="false">Näytä muut viestit</);
+  assert.ok(!kiinni.includes('Retkipäivä perjantaina'));
+  const auki = html({ lista: true });
+  assert.match(auki, /aria-expanded="true">Piilota muut viestit</);
+  assert.match(auki, /Retkipäivä perjantaina.*data-toiminto="hae" data-id="40">Lue viesti<.*data-toiminto="kiinnita" data-id="40">Kiinnitä</s);
+  assert.match(auki, /data-toiminto="kiinnita" data-id="20">Kiinnitä</);
+  assert.match(html({ viestivirhe: 'Kiinnitys epäonnistui: x' }), /class="virhe sec">Kiinnitys epäonnistui: x</);
+  // Integraatio ilman kiinnitystoimintoja: ei listaa eikä kiinnityspainikkeita.
+  const ilman = html({ kiinnitys: false, lista: true });
+  assert.ok(!ilman.includes('data-toiminto="lista"') && !ilman.includes('Kiinnitä<') && !ilman.includes('Poista kiinnitys'));
+  // Ei kiinnitettyjä: osio näkyy silti, jotta ensimmäisen viestin voi kiinnittää.
+  const tyhja = piirra(wilmaModel(viestit(LISTA), ma(16)), 'Testi', { palvelu: true, kiinnitys: true });
+  assert.match(tyhja, /<h2 class="disp">Viestit<\/h2><span class="sec"><\/span>/);
+  assert.match(tyhja, />Näytä viestit</);
+  assert.ok(!piirra(wilmaModel(viestit(LISTA), ma(16)), 'Testi', { palvelu: true }).includes('>Viestit<'));
 });

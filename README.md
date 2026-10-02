@@ -52,7 +52,7 @@ lisätään YAML-näkymässä.
 | `child` | Lapsen nimi tekstinä `device`-asetuksen sijaan, esim. `Aino Esimerkki`. |
 | `subjects` | Koulun omat ainekoodit, joita kortti ei tunnista valmiiksi. |
 | `strip_suffixes` | Tunnisteet, jotka poistetaan tuntimerkinnän lopusta. |
-| `pinned` | Kiinnitetyt Wilma-viestit. Ks. [Kiinnitetyt viestit](#kiinnitetyt-viestit). |
+| `pinned` | Säännöt, joilla Wilma-viesti kiinnitetään. Ks. [Viestit ja kiinnittäminen](#viestit-ja-kiinnittäminen). |
 
 ```yaml
 type: custom:wilma-card
@@ -63,9 +63,20 @@ strip_suffixes:
   - XYZ        # "Kotitehtävät tekemättä, XYZ" näkyy muodossa "Kotitehtävät tekemättä"
 ```
 
-## Kiinnitetyt viestit
+## Viestit ja kiinnittäminen
 
-Viestin voi kiinnittää näkyviin aikajanan alle. `pinned` on lista sääntöjä:
+Aikajanan alla on osio **Viestit**. Kiinnitetyt viestit näkyvät siinä aina, ja
+**Näytä viestit** avaa listan uusimmista Wilma-viesteistä.
+
+- **Kiinnitä** nostaa viestin näkyviin, **Poista kiinnitys** laskee sen takaisin listaan.
+  Kiinnitys tallentuu Wilma-integraatioon, joten se näkyy kaikilla laitteilla ja käyttäjillä.
+- Viestin teksti näkyy kolmen rivin esikatseluna, ja **Näytä lisää** avaa koko viestin
+  vastauksineen.
+- Lukemattomalla viestillä ja listan viesteillä on painike **Lue viesti**: sisältö haetaan
+  vasta siitä, koska Wilma merkitsee viestin luetuksi, kun sen sisältö haetaan.
+
+Toistuvan viestin voi kiinnittää säännöllä kortin asetuksissa. Sääntö näyttää aina uusimman
+siihen sopivan viestin, joten esimerkiksi viikoittainen viesti vaihtuu itsestään:
 
 ```yaml
 type: custom:wilma-card
@@ -77,23 +88,17 @@ pinned:
   - id: 1234567                # yksittäinen viesti, pysyy kunnes poistat rivin
 ```
 
-Sääntö kiinnittää aina uusimman siihen sopivan viestin, joten esimerkiksi viikoittainen
-viesti vaihtuu itsestään. Kirjainkoolla ei ole väliä. Viestin `id` löytyy
-**Uudet viestit** -sensorin `messages`-attribuutista.
+Kirjainkoolla ei ole väliä. Säännöllä kiinnitetty viesti poistetaan poistamalla sääntö.
 
-Viestin teksti näkyy kolmen rivin esikatseluna, ja **Näytä lisää** avaa koko viestin
-vastauksineen. Lukemattomalla viestillä on painike **Lue viesti**: sisältö haetaan vasta
-siitä, koska Wilma merkitsee viestin luetuksi, kun sen sisältö haetaan.
-
-Viestin sisältö tarvitsee Wilma-integraatiolta toiminnon `wilma.get_message` ja sensorin
-`messages`-attribuutin. Ilman niitä kortti kiinnittää otsikon, lähettäjän ja päivän, ja
-säännöt etsivät viestiä integraation kymmenestä uusimmasta viestistä.
+Osio tarvitsee Wilma-integraatiolta toiminnot `wilma.get_message`, `wilma.pin_message` ja
+`wilma.unpin_message` sekä **Uudet viestit** -sensorin attribuutit `messages` ja `pinned`.
+Ilman niitä kortti näyttää säännöllä kiinnitetystä viestistä otsikon, lähettäjän ja päivän.
 
 ## Mitä kortti näyttää
 
 - **Koulupäivä.** Koulupäivän aikana kuluva päivä, sen jälkeen seuraava koulupäivä.
   Tunnit ovat kestonsa korkuisia ja tauot näkyvät niiden väleinä. Käynnissä oleva tunti on merkitty.
-- **Kiinnitetyt viestit**, jos niitä on asetettu.
+- **Viestit.** Kiinnitetyt viestit ja avattava lista uusimmista viesteistä.
 - **Läksyt tänään.** Näkyy siihen asti, kun aineen tunti alkaa.
 - **Läksyt huomiseksi** ja **myöhemmin.** Palautuspäivä on aineen seuraava tunti.
   Viikkorivillä neliö on läksy ja rengas koe.
