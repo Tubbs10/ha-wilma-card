@@ -15,7 +15,7 @@
  * ks. test/model.test.mjs.
  */
 
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 
 // Oppiaineet: [koodin alku tai sana nimessä, nimi]. Myöhempi osuma voittaa.
 const KOODIT = [
@@ -337,7 +337,28 @@ function wilmaModel(s, nyt, asetukset = {}) {
   const viestit = kerää('uudet_viestit', 'msg_', false, 0, [], ['●'])
     .map((o) => ({ aine: '', teksti: o[1] || '', lisatieto: o.slice(2).join(SEP), paivays: pvm(o[0]) }));
   lisaaOsio('Lukemattomat viestit', 'viesti', viestit, s('uudet_viestit') ? parseInt(s('uudet_viestit').state, 10) || 0 : 0);
-  lisaaOsio('Huomautukset', 'varoitus', kerää('kaikki_tuntimerkinnat', 'item_', true, 6, [1, 4], HUOMAUTUSSANAT).map(huomio));
+  /*
+   * Huomautukset. Moitteet-sensorin notes-attribuutista (päivä, laji, aine, opettaja, teksti):
+   * tuoreet Huomioihin, vanhemmat avattavaan listaan. Ilman attribuuttia tuoreet poimitaan
+   * kaikista tuntimerkinnöistä hakusanoilla.
+   */
+  const moitesensori = s('moitteet');
+  const moitteet = moitesensori && moitesensori.attributes && Array.isArray(moitesensori.attributes.notes)
+    ? moitesensori.attributes.notes.map((n) => {
+      const a = aine(n.subject || '', al);
+      const siisti = (x) => {
+        const v = String(x || '');
+        for (const t of tunnisteet) if (v.endsWith(', ' + t)) return v.slice(0, -(t.length + 2));
+        return v;
+      };
+      const pv = String(n.date || '').slice(0, 10);
+      return { aine: a.known ? a.nimi : String(n.subject || ''), teksti: [n.kind, n.text].map(siisti).filter(Boolean).join(SEP), paivays: pvm(pv), pv };
+    }).sort((a, b) => b.pv.localeCompare(a.pv))
+    : null;
+  lisaaOsio('Huomautukset', 'varoitus', moitteet
+    ? moitteet.filter((x) => x.pv >= raja)
+    : kerää('kaikki_tuntimerkinnat', 'item_', true, 6, [1, 4], HUOMAUTUSSANAT).map(huomio));
+  const aiemmatMoitteet = moitteet ? moitteet.filter((x) => !(x.pv >= raja)) : [];
   lisaaOsio('Tiedotteet', 'tiedote', kerää('tiedote', 'news_', true, 0, [], []).map(huomio));
 
   /*
@@ -435,6 +456,7 @@ function wilmaModel(s, nyt, asetukset = {}) {
     muutViestit,
     arvosanat,
     kehut: { rivit: kehut.slice(0, ENINTAAN), yhteensa: kehut.length, viikolla: kehujaViikolla },
+    aiemmatMoitteet,
   };
 }
 
@@ -525,6 +547,7 @@ h2 { margin: 0; font-size: 28px; line-height: 1.1; }
 .napit { display: flex; flex-wrap: wrap; column-gap: 18px; }
 .virhe { font-size: 13px; }
 button.linkki { background: none; border: 0; margin: 0; padding: 0; min-height: 44px; font: inherit; font-size: 14px; font-weight: 500; color: var(--primary-text-color); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; text-align: left; align-self: flex-start; }
+button.linkki.hiljainen { font-weight: 400; color: var(--secondary-text-color); }
 button.linkki:focus-visible { outline: 2px solid var(--w-hl); outline-offset: 2px; }
 .tyhja { font-size: 14px; }
 `;
@@ -635,6 +658,12 @@ function piirra(m, nimi, ui = {}) {
     if (m.kehut.yhteensa > m.kehut.rivit.length) h.push(`<div class="kisko"><div></div><div class="sec" style="font-size:13px">+${m.kehut.yhteensa - m.kehut.rivit.length} lisää Wilmassa</div></div>`);
   }
 
+  /* Aiemmat huomautukset: yksi hillitty rivi, lista aukeaa painamalla. */
+  if (m.aiemmatMoitteet && m.aiemmatMoitteet.length) {
+    h.push(`<div class="kisko"><div></div><div class="napit"><button class="linkki hiljainen" type="button" data-toiminto="moitteet" aria-expanded="${ui.moitteet ? 'true' : 'false'}">${ui.moitteet ? 'Piilota aiemmat huomautukset' : `Aiemmat huomautukset (${m.aiemmatMoitteet.length})`}</button></div></div>`);
+    if (ui.moitteet) h.push(`<div class="lista tiivis">${m.aiemmatMoitteet.map((r) => `<div class="kisko"><div class="sec" style="font-size:13px">${esc(r.paivays)}</div><div class="sis"><span class="nimi">${esc(r.aine || r.teksti)}</span>${r.aine && r.teksti ? `<span class="teksti">${rivitetty(r.teksti)}</span>` : ''}</div></div>`).join('')}</div>`);
+  }
+
   /*
    * Viestit: kiinnitetyt aina näkyvissä, muut avattavassa listassa. Painikkeet tarvitsevat
    * integraatiolta toiminnot (ui.palvelu: wilma.get_message, ui.kiinnitys: wilma.pin_message).
@@ -692,7 +721,7 @@ const ROOLIT = {
   tanaan: 'Tänään', seuraava_tunti: 'Seuraava tunti', aktiiviset_laksyt: 'Aktiiviset läksyt',
   kaikki_laksyt: 'Kaikki läksyt', seuraava_koe: 'Seuraava koe', arvosanat: 'Arvosanat',
   kaikki_tuntimerkinnat: 'Kaikki tuntimerkinnät', selvittamattomat_tuntimerkinnat: 'Selvittämättömät tuntimerkinnät',
-  tiedote: 'Tiedote', uudet_viestit: 'Uudet viestit', kehut: 'Kehut', oppilas: 'Oppilas',
+  tiedote: 'Tiedote', uudet_viestit: 'Uudet viestit', kehut: 'Kehut', moitteet: 'Moitteet', oppilas: 'Oppilas',
 };
 
 const slug = (v) => String(v || '').toLowerCase().replace(/[äå]/g, 'a').replace(/ö/g, 'o').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -768,11 +797,12 @@ if (typeof HTMLElement !== 'undefined' && typeof customElements !== 'undefined')
           const toiminto = nappi.dataset.toiminto;
           this._viestivirhe = '';
           if (toiminto === 'lista') this._lista = !this._lista;
+          else if (toiminto === 'moitteet') this._moitteet = !this._moitteet;
           else if (toiminto === 'hae') this._haeViesti(id, true);
           else if (toiminto === 'kiinnita' || toiminto === 'irrota') this._kiinnita(id, toiminto === 'kiinnita');
           else if (this._auki.has(id)) this._auki.delete(id);
           else this._auki.add(id);
-          this._kohdistus = toiminto === 'lista' ? 'button[data-toiminto="lista"]' : `button[data-id="${id}"]`;
+          this._kohdistus = toiminto === 'lista' || toiminto === 'moitteet' ? `button[data-toiminto="${toiminto}"]` : `button[data-id="${id}"]`;
           this._paivita(true);
         });
       }
@@ -869,7 +899,7 @@ if (typeof HTMLElement !== 'undefined' && typeof customElements !== 'undefined')
         const palvelut = (this._hass.services && this._hass.services.wilma) || {};
         const palvelu = !!palvelut.get_message;
         const kiinnitys = !!(palvelut.pin_message && palvelut.unpin_message);
-        this.shadowRoot.innerHTML = piirra(malli, nimi, { palvelu, kiinnitys, lista: !!this._lista, viestivirhe: this._viestivirhe, auki: this._auki, viestit: this._viestit });
+        this.shadowRoot.innerHTML = piirra(malli, nimi, { palvelu, kiinnitys, lista: !!this._lista, moitteet: !!this._moitteet, viestivirhe: this._viestivirhe, auki: this._auki, viestit: this._viestit });
         this._viimeistele(malli, palvelu);
       } catch (err) {
         this.shadowRoot.innerHTML = `<ha-card style="padding:16px">Wilma-kortti: ${esc(err && err.message)}</ha-card>`;
