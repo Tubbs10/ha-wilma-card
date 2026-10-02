@@ -115,9 +115,11 @@ Osio käyttää integraation [Tubbs10/ha-wilma](https://github.com/Tubbs10/ha-wi
 
 - **Koulupäivä.** Koulupäivän aikana kuluva päivä, sen jälkeen seuraava koulupäivä.
   Tunnit ovat kestonsa korkuisia ja tauot näkyvät niiden väleinä. Käynnissä oleva tunti on merkitty.
-- **Läksyt tänään.** Näkyy siihen asti, kun aineen tunti alkaa.
-- **Läksyt huomiseksi** ja **myöhemmin.** Palautuspäivä on aineen seuraava tunti.
-  Viikkorivillä neliö on läksy ja rengas koe.
+- **Läksyt.** Otsikon alla viikkorivi: kuluva tai seuraava koulupäivä ja sitä seuraavat
+  koulupäivät, neliö on läksy ja rengas koe. Sen alla läksyt kolmessa ryhmässä:
+  - **Tänään.** Näkyy siihen asti, kun aineen tunti alkaa.
+  - **Huomiseksi** (tai seuraavaksi koulupäiväksi) ja **Myöhemmin.** Palautuspäivä on
+    aineen seuraava tunti.
 - **Kokeet** kahden viikon sisällä ja päivät niihin.
 - **Huomiot.** Lukemattomat Wilma-viestit, selvitettävät tuntimerkinnät, huomautukset ja
   tiedotteet. Osio näkyy, kun siinä on sisältöä.
