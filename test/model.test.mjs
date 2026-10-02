@@ -66,7 +66,21 @@ test('poikkeava luokka, tauot ja viikkorivi', () => {
   assert.deepEqual(m.paiva.tunnit.map((t) => t.poikkeavaLuokka), ['', 'Kielistudio:B2']);
   assert.deepEqual(m.paiva.tunnit.map((t) => t.taukoMin), [15, 0]);
   const ilta = wilmaModel(sensorit(), ma(16));
-  assert.deepEqual(ilta.viikkorivi.map((d) => `${d.pv} ${d.pvm}`), ['ke 7.', 'ma 12.', 'ti 13.', 'ke 14.']);
+  // Rivi alkaa näytettävästä koulupäivästä: illalla seuraavasta, koulupäivän aikana kuluvasta.
+  assert.deepEqual(ilta.viikkorivi.map((d) => `${d.pv} ${d.pvm}`), ['ti 6.', 'ke 7.', 'ma 12.', 'ti 13.', 'ke 14.']);
+  assert.deepEqual(ilta.viikkorivi.map((d) => [d.laksyja, d.kokeita]), [[1, 1], [0, 0], [0, 0], [0, 0], [0, 0]]);
+  assert.deepEqual(m.viikkorivi.map((d) => `${d.pv} ${d.pvm}${d.nyt ? ' nyt' : ''}`), ['ma 5. nyt', 'ti 6.', 'ke 7.', 'ma 12.', 'ti 13.', 'ke 14.']);
+  assert.deepEqual(m.viikkorivi.slice(0, 2).map((d) => d.laksyja), [2, 1]);
+});
+
+test('läksyt ovat yksi osio: viikkorivi otsikon alla, sitten tänään, huomiseksi ja myöhemmin', () => {
+  const html = piirra(wilmaModel(sensorit(), ma(7)), 'Aino', {});
+  assert.equal((html.match(/<h2 class="disp">[^<]*äksy[^<]*<\/h2>/g) || []).length, 1);
+  const paikat = ['<h2 class="disp">Läksyt</h2>', 'class="viikko"', '<h3 class="disp">Tänään</h3>', '<h3 class="disp">Huomiseksi</h3>', '<h3 class="disp">Myöhemmin</h3>', '<h2 class="disp">Kokeet</h2>'].map((x) => html.indexOf(x));
+  assert.ok(paikat.every((p, i) => p > 0 && (i === 0 || p > paikat[i - 1])), String(paikat));
+  assert.ok(html.includes('<div class="nyt">'));
+  const perjantai = piirra(wilmaModel(sensorit(), new Date(2026, 9, 9, 16)), 'Aino', {});
+  assert.ok(perjantai.includes('<h3 class="disp">Maanantaiksi 12.10.</h3>'));
 });
 
 test('kokeet, arvosanat, huomiot ja kehut', () => {

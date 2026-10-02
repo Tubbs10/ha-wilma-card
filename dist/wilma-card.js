@@ -15,7 +15,7 @@
  * ks. test/model.test.mjs.
  */
 
-const VERSION = '1.0.2';
+const VERSION = '1.0.3';
 
 // Oppiaineet: [koodin alku tai sana nimessä, nimi]. Myöhempi osuma voittaa.
 const KOODIT = [
@@ -287,19 +287,24 @@ function wilmaModel(s, nyt, asetukset = {}) {
   laksyt.muut.sort((a, b) => (a.era ? iso(a.era) : '9999').localeCompare(b.era ? iso(b.era) : '9999'));
   for (const l of laksyt.muut) l.milloin = l.era ? milloin(l.era) : 'päivä ei tiedossa';
 
-  // Viikkorivi: seuraavan koulupäivän jälkeiset koulupäivät, läksyjen ja kokeiden määrä.
+  /*
+   * Viikkorivi: näytettävä koulupäivä (kuluva tai seuraava) ja sitä seuraavat koulupäivät,
+   * läksyjen ja kokeiden määrä. Rivi jää pois, jos näille päiville ei ole kumpaakaan.
+   */
   const viikkorivi = [];
-  if (laksyt.muut.length) {
-    for (let i = 1; i < 15 && viikkorivi.length < VIIKKORIVIN_PAIVAT; i++) {
-      const d = lisaa(seur || tanaan, i);
-      if (!viikko.some((t) => t[0] === isoVp(d))) continue;
-      viikkorivi.push({
-        pv: PV[vp(d)], pvm: `${d.getDate()}.`,
-        laksyja: laksyt.muut.filter((l) => sama(l.era, d)).length,
-        kokeita: kokeet.filter((k) => sama(k.paiva, d)).length,
-      });
-    }
+  const kaikkiLaksyt = [...laksyt.tanaan, ...laksyt.seur, ...laksyt.muut];
+  const rivinAlku = kesken ? tanaan : seur;
+  for (let i = 0, myohempia = 0; rivinAlku && i < 15 && myohempia < VIIKKORIVIN_PAIVAT; i++) {
+    const d = lisaa(rivinAlku, i);
+    if (i > 0 && !viikko.some((t) => t[0] === isoVp(d))) continue;
+    if (!seur || d > seur) myohempia++;
+    viikkorivi.push({
+      pv: PV[vp(d)], pvm: `${d.getDate()}.`, nyt: sama(d, tanaan),
+      laksyja: kaikkiLaksyt.filter((l) => l.era && sama(l.era, d)).length,
+      kokeita: kokeet.filter((k) => sama(k.paiva, d)).length,
+    });
   }
+  if (!viikkorivi.some((d) => d.laksyja || d.kokeita)) viikkorivi.length = 0;
 
   /* Huomiot. Kentät " · "-erotettuna, ensimmäinen on päivä tai aikaleima. */
   const raja = iso(lisaa(tanaan, -TUOREET_PV));
@@ -447,7 +452,7 @@ function wilmaModel(s, nyt, asetukset = {}) {
     paiva: paivanakyma,
     koeHalytykset,
     laksyt,
-    seurOtsikko: seur ? (sama(seur, lisaa(tanaan, 1)) ? 'huomiseksi' : `${PV_KSI[vp(seur)]} ${seur.getDate()}.${seur.getMonth() + 1}.`) : '',
+    seurOtsikko: seur ? (sama(seur, lisaa(tanaan, 1)) ? 'Huomiseksi' : `${PV_KSI[vp(seur)][0].toUpperCase()}${PV_KSI[vp(seur)].slice(1)} ${seur.getDate()}.${seur.getMonth() + 1}.`) : '',
     seurPaivays: seur ? lyhyt(seur) : '',
     viikkorivi,
     kokeet: { lahella, myohemmin },
@@ -507,6 +512,9 @@ ha-card { background: none; border: none; box-shadow: none; padding: 6px 8px 16p
 h2 { margin: 0; font-size: 28px; line-height: 1.1; }
 .otsikko { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; border-top: 1px solid var(--divider-color); padding-top: 18px; }
 .otsikko span { font-size: 14px; white-space: nowrap; }
+h3 { margin: 0; font-size: 19px; line-height: 1.1; }
+.alaotsikko { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding-top: 4px; }
+.alaotsikko span { font-size: 13px; white-space: nowrap; }
 .lista { display: flex; flex-direction: column; gap: 16px; }
 .lista.tiivis { gap: 14px; }
 
@@ -521,6 +529,7 @@ h2 { margin: 0; font-size: 28px; line-height: 1.1; }
 .viikko { display: grid; border-right: 1px solid var(--divider-color); border-top: 1px solid var(--divider-color); border-bottom: 1px solid var(--divider-color); }
 .viikko > div { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; border-left: 1px solid var(--divider-color); }
 .viikko small { font-size: 12px; }
+.viikko > div.nyt { box-shadow: inset 0 -3px 0 var(--w-hl); }
 .viikko b { font-size: 20px; line-height: 1; }
 .merkit { display: flex; gap: 4px; align-items: center; height: 10px; }
 .nelio { width: 7px; height: 7px; background: var(--primary-text-color); }
@@ -591,23 +600,28 @@ function piirra(m, nimi, ui = {}) {
     h.push(`<div class="kisko koe-halytys"><div></div><div><span class="hl">Koe ${esc(k.milloin)}</span> ${esc(k.aine)}${k.kuvaus ? ` · ${esc(k.kuvaus)}` : ''}</div></div>`);
   }
 
-  /* Läksyt */
+  /* Läksyt: viikkorivi heti otsikon alla, sitten tänään, seuraava koulupäivä ja myöhemmin. */
+  const laksyja = m.laksyt.tanaan.length + m.laksyt.seur.length + m.laksyt.muut.length;
+  const ala = (otsikko, n) => `<div class="alaotsikko"><h3 class="disp">${esc(otsikko)}</h3><span class="sec">${n ? monikko(n, 'tehtävä', 'tehtävää') : ''}</span></div>`;
+  if (laksyja || m.seur) {
+    h.push(osio('Läksyt', laksyja ? monikko(laksyja, 'tehtävä', 'tehtävää') : ''));
+    if (m.viikkorivi.length) {
+      h.push(`<div class="viikko" style="grid-template-columns: repeat(${m.viikkorivi.length}, minmax(0, 1fr))">${m.viikkorivi.map((d) => `<div${d.nyt ? ' class="nyt"' : ''}><small class="sec">${d.pv}</small><b class="disp">${d.pvm}</b><div class="merkit">${'<span class="nelio"></span>'.repeat(d.laksyja)}${'<span class="rengas"></span>'.repeat(d.kokeita)}</div></div>`).join('')}</div>
+        <div class="selite sec"><span><span class="nelio"></span> läksy</span><span><span class="rengas"></span> koe</span></div>`);
+    }
+  }
   if (m.laksyt.tanaan.length) {
-    h.push(osio('Läksyt tänään', monikko(m.laksyt.tanaan.length, 'tehtävä', 'tehtävää')));
+    h.push(ala('Tänään', m.laksyt.tanaan.length));
     h.push(`<div class="lista">${m.laksyt.tanaan.map((l) => laksy(l, `<div class="era"><small class="sec">tunti</small><b class="num">${esc(l.tunti)}</b></div>`, true)).join('')}</div>`);
   }
   if (m.seur) {
-    h.push(osio(`Läksyt ${m.seurOtsikko}`, m.laksyt.seur.length ? monikko(m.laksyt.seur.length, 'tehtävä', 'tehtävää') : ''));
+    h.push(ala(m.seurOtsikko, m.laksyt.seur.length));
     h.push(m.laksyt.seur.length
       ? `<div class="lista">${m.laksyt.seur.map((l, i) => laksy(l, i === 0 ? era(m.seur) : '<div></div>', !m.laksyt.tanaan.length)).join('')}</div>`
       : '<div class="kisko"><div></div><div class="tyhja sec">Ei läksyjä.</div></div>');
   }
   if (m.laksyt.muut.length) {
-    h.push(osio('Myöhemmin', monikko(m.laksyt.muut.length, 'tehtävä', 'tehtävää')));
-    if (m.viikkorivi.length) {
-      h.push(`<div class="viikko" style="grid-template-columns: repeat(${m.viikkorivi.length}, minmax(0, 1fr))">${m.viikkorivi.map((d) => `<div><small class="sec">${d.pv}</small><b class="disp">${d.pvm}</b><div class="merkit">${'<span class="nelio"></span>'.repeat(d.laksyja)}${'<span class="rengas"></span>'.repeat(d.kokeita)}</div></div>`).join('')}</div>
-        <div class="selite sec"><span><span class="nelio"></span> läksy</span><span><span class="rengas"></span> koe</span></div>`);
-    }
+    h.push(ala('Myöhemmin', m.laksyt.muut.length));
     let edellinen = null;
     h.push(`<div class="lista">${m.laksyt.muut.map((l) => {
       const uusi = !(edellinen && l.era && sama(edellinen, l.era));
