@@ -42,7 +42,9 @@ test('koulupäivän jälkeen näytetään seuraava koulupäivä ja sen läksyt',
   assert.deepEqual(m.paiva.tunnit.map((t) => t.aine), ['Ympäristöoppi']);
   assert.deepEqual(m.laksyt.tanaan, []);
   assert.deepEqual(m.laksyt.seur.map((l) => l.aine), ['Ympäristöoppi']);
-  assert.deepEqual(m.koeHalytykset.map((k) => `${k.milloin} ${k.aine}`), ['huomenna Ympäristöoppi']);
+  // Huomisen koe näkyy vain Kokeet-osiossa, ei lukujärjestyksen alla.
+  assert.deepEqual(m.kokeet.lahella.map((k) => `${k.ero} ${k.aine}`), ['1 Ympäristöoppi']);
+  assert.ok(!piirra(m, 'Aino', {}).includes('Koe huomenna'));
   // Tunnistamaton aine näkyy, koska integraatio pitää sitä aktiivisena; päivä tulee vihjeestä.
   assert.deepEqual(m.laksyt.muut.map((l) => `${l.milloin} ${l.aine}`), ['pe 9.10. Kerho']);
 });
