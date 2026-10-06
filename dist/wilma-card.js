@@ -15,7 +15,7 @@
  * ks. test/model.test.mjs.
  */
 
-const VERSION = '1.0.4';
+const VERSION = '1.0.5';
 
 // Oppiaineet: [koodin alku tai sana nimessä, nimi]. Myöhempi osuma voittaa.
 const KOODIT = [
@@ -231,10 +231,6 @@ function wilmaModel(s, nyt, asetukset = {}) {
   });
   const lahella = kokeet.filter((k) => k.ero >= 0 && k.ero <= KOKEET_LAHIAIKA_PV).sort((a, b) => a.ero - b.ero);
   const myohemmin = kokeet.filter((k) => k.ero > KOKEET_LAHIAIKA_PV).sort((a, b) => a.ero - b.ero);
-  // Näytettävän päivän kokeet ja koulupäivän aikana myös seuraavan koulupäivän.
-  const koepaivat = [nayta, kesken ? seur : null].filter(Boolean);
-  const koeHalytykset = [];
-  for (const k of kokeet) for (const d of koepaivat) if (sama(k.paiva, d)) koeHalytykset.push({ ...k, milloin: milloin(d) });
 
   /*
    * Läksyt. Palautuspäivä lasketaan itse: seuraava saman aineen tunti antopäivän jälkeen.
@@ -459,7 +455,6 @@ function wilmaModel(s, nyt, asetukset = {}) {
   return {
     tanaan, kesken, seur,
     paiva: paivanakyma,
-    koeHalytykset,
     laksyt,
     seurOtsikko: seur ? (sama(seur, lisaa(tanaan, 1)) ? 'Huomiseksi' : `${PV_KSI[vp(seur)][0].toUpperCase()}${PV_KSI[vp(seur)].slice(1)} ${seur.getDate()}.${seur.getMonth() + 1}.`) : '',
     seurPaivays: seur ? lyhyt(seur) : '',
@@ -516,7 +511,6 @@ ha-card { background: none; border: none; box-shadow: none; padding: 6px 8px 16p
 .tauko > div:last-child { border-left: 3px dotted var(--disabled-text-color, #777); padding-left: 12px; display: flex; align-items: center; font-size: 12px; }
 .loppu { padding-top: 6px; font-size: 13px; }
 
-.koe-halytys { font-size: 15px; font-weight: 500; }
 
 h2 { margin: 0; font-size: 28px; line-height: 1.1; }
 .otsikko { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; border-top: 1px solid var(--divider-color); padding-top: 18px; }
@@ -604,9 +598,6 @@ function piirra(m, nimi, ui = {}) {
     h.push(`<div class="jana">${jana.join('')}</div>`);
   } else {
     h.push(`<div class="paa"><div class="ylä"><span class="sec">${esc(nimi)}</span></div><h1 class="disp">Koulupäivä</h1></div><div class="tyhja sec">Ei tunteja tiedossa.</div>`);
-  }
-  for (const k of m.koeHalytykset) {
-    h.push(`<div class="kisko koe-halytys"><div></div><div><span class="hl">Koe ${esc(k.milloin)}</span> ${esc(k.aine)}${k.kuvaus ? ` · ${esc(k.kuvaus)}` : ''}</div></div>`);
   }
 
   /* Läksyt: viikkorivi heti otsikon alla, sitten tänään, seuraava koulupäivä ja myöhemmin. */
