@@ -375,3 +375,10 @@ test('päivätty lukujärjestys: jakson vaihtuessa näkyy vain päivän oma tunt
   const laksy = { kaikki_laksyt: { state: '1', attributes: { hw_1: '2026-10-05 · Englanti, A1 · Sanat' } }, aktiiviset_laksyt: { state: '0', attributes: {} } };
   assert.deepEqual(wilmaModel(sensorit({ ...lisa, ...laksy }), new Date(2026, 9, 5, 16)).laksyt.muut, []);
 });
+
+test('saman päivän kokeet korostetaan kaikki', () => {
+  const kokeet = { seuraava_koe: { state: 'x', attributes: { exam_1: '2026-10-06 · YM YM09 · Koe 1', exam_2: '2026-10-06 · MA MA09 · Koe 2', exam_3: '2026-10-08 · ENA1 ENA109 · Sanat' } } };
+  const html = piirra(wilmaModel(sensorit(kokeet), ma(16)), 'Aino', {});
+  assert.equal((html.match(/<span class="sana hl">huomenna<\/span>/g) || []).length, 2);
+  assert.ok(html.includes('<b class="disp num">3</b>'));
+});

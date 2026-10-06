@@ -15,7 +15,7 @@
  * ks. test/model.test.mjs.
  */
 
-const VERSION = '1.0.5';
+const VERSION = '1.0.6';
 
 // Oppiaineet: [koodin alku tai sana nimessä, nimi]. Myöhempi osuma voittaa.
 const KOODIT = [
@@ -635,8 +635,9 @@ function piirra(m, nimi, ui = {}) {
   const k = m.kokeet;
   h.push(osio('Kokeet', k.myohemmin.length ? `+${k.myohemmin.length} myöhemmin` : ''));
   if (k.lahella.length) {
-    h.push(`<div class="lista tiivis">${k.lahella.map((x, i) => {
-      const hl = i === 0 ? ' hl' : '';
+    h.push(`<div class="lista tiivis">${k.lahella.map((x) => {
+      // Korostus kaikille lähimmän koepäivän kokeille.
+      const hl = x.ero === k.lahella[0].ero ? ' hl' : '';
       const pv = x.ero === 0 ? `<span class="sana${hl}">tänään</span>` : x.ero === 1 ? `<span class="sana${hl}">huomenna</span>`
         : `<b class="disp num${hl}">${x.ero}</b><small class="sec">pv</small>`;
       return `<div class="kisko koe"><div class="pv">${pv}</div><div class="sis"><span class="nimi">${esc(x.aine)}${x.kuvaus ? ` · ${esc(x.kuvaus)}` : ''}</span><span class="meta sec">${esc(x.paivays)}</span></div></div>`;
