@@ -15,7 +15,7 @@
  * ks. test/model.test.mjs.
  */
 
-const VERSION = '1.0.6';
+const VERSION = '1.0.7';
 
 // Oppiaineet: [koodin alku tai sana nimessä, nimi]. Myöhempi osuma voittaa.
 const KOODIT = [
@@ -490,6 +490,8 @@ ha-card { background: none; border: none; box-shadow: none; padding: 6px 8px 16p
 .num { font-variant-numeric: tabular-nums; }
 .disp { font-family: 'Bricolage Grotesque', var(--paper-font-body1_-_font-family, Roboto), sans-serif; font-weight: 700; letter-spacing: -0.02em; }
 .hl { background: var(--w-hl); color: var(--w-ink); padding: 1px 6px; margin-left: -6px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+/* Läksyn korostus on viikkorivin neliön värinen; keltavihreä jää kokeille. */
+.hl.laksy-hl { background: var(--primary-text-color); color: var(--primary-background-color, #111); }
 .kisko { display: grid; grid-template-columns: 64px minmax(0, 1fr); column-gap: 14px; }
 .kisko > :first-child { text-align: right; }
 
@@ -532,7 +534,7 @@ h3 { margin: 0; font-size: 19px; line-height: 1.1; }
 .viikko { display: grid; border-right: 1px solid var(--divider-color); border-top: 1px solid var(--divider-color); border-bottom: 1px solid var(--divider-color); }
 .viikko > div { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; border-left: 1px solid var(--divider-color); }
 .viikko small { font-size: 12px; }
-.viikko > div.nyt { box-shadow: inset 0 -3px 0 var(--w-hl); }
+.viikko > div.nyt { box-shadow: inset 0 -3px 0 var(--primary-text-color); }
 .viikko b { font-size: 20px; line-height: 1; }
 .merkit { display: flex; gap: 4px; align-items: center; height: 10px; }
 .nelio { width: 7px; height: 7px; background: var(--primary-text-color); }
@@ -576,7 +578,7 @@ function piirra(m, nimi, ui = {}) {
   const h = [];
   const osio = (otsikko, oikea = '') => `<div class="otsikko"><h2 class="disp">${esc(otsikko)}</h2><span class="sec">${esc(oikea)}</span></div>`;
   const era = (d) => (d ? `<div class="era"><small class="sec">${PV[vp(d)]}</small><b class="num">${d.getDate()}.${d.getMonth() + 1}.</b></div>` : '<div></div>');
-  const laksy = (l, kisko, korosta) => `<div class="kisko">${kisko}<div class="sis"><span class="nimi">${korosta ? `<span class="hl">${esc(l.aine)}</span>` : esc(l.aine)}</span><span class="teksti">${rivitetty(l.teksti)}</span></div></div>`;
+  const laksy = (l, kisko, korosta) => `<div class="kisko">${kisko}<div class="sis"><span class="nimi">${korosta ? `<span class="hl laksy-hl">${esc(l.aine)}</span>` : esc(l.aine)}</span><span class="teksti">${rivitetty(l.teksti)}</span></div></div>`;
 
   /* Otsikko ja aikajana */
   const p = m.paiva;
