@@ -380,5 +380,8 @@ test('saman päivän kokeet korostetaan kaikki', () => {
   const kokeet = { seuraava_koe: { state: 'x', attributes: { exam_1: '2026-10-06 · YM YM09 · Koe 1', exam_2: '2026-10-06 · MA MA09 · Koe 2', exam_3: '2026-10-08 · ENA1 ENA109 · Sanat' } } };
   const html = piirra(wilmaModel(sensorit(kokeet), ma(16)), 'Aino', {});
   assert.equal((html.match(/<span class="sana hl">huomenna<\/span>/g) || []).length, 2);
-  assert.ok(html.includes('<b class="disp num">3</b>'));
+  // Myöhempi koe näyttää päivämäärän kuten läksyt, ei isoa lukua joka sekoittuisi arvosanaan.
+  assert.ok(html.includes('<small class="sec">to</small><b class="num">8.10.</b>'));
+  assert.ok(html.includes('3 päivän päästä'));
+  assert.ok(!/<b class="disp num[^"]*">3<\/b>/.test(html));
 });
