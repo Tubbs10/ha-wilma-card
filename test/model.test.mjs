@@ -385,3 +385,20 @@ test('saman päivän kokeet korostetaan kaikki', () => {
   assert.ok(html.includes('3 päivän päästä'));
   assert.ok(!/<b class="disp num[^"]*">3<\/b>/.test(html));
 });
+
+test('läksy, joka on annettu ennen tunnettuja tunteja, ei saa omaa eräpäivää', () => {
+  // Tunnit tiedetään vasta ma 19.10. alkaen; matematiikka ti 20.10.
+  const tunnit = { seuraava_tunti: { state: 'x', attributes: { schedule: [
+    { day: 1, start: '08:15', end: '09:15', subject: 'MA', teacher: 'OPE', room: '3B:A101', dates: ['2026-10-19'] },
+    { day: 2, start: '08:15', end: '09:15', subject: 'MA', teacher: 'OPE', room: '3B:A101', dates: ['2026-10-20'] },
+  ] } } };
+  const vanha = '2026-10-08 · Matematiikka, syksy · Kokeeseen tehtävät 1-6';
+  const uusi = '2026-10-19 · Matematiikka, syksy · Tehtävät 7-9';
+  const nyt = new Date(2026, 9, 19, 16);
+  const ei = wilmaModel(sensorit({ ...tunnit, kaikki_laksyt: { state: '2', attributes: { hw_1: vanha, hw_2: uusi } }, aktiiviset_laksyt: { state: '0', attributes: {} } }), nyt);
+  assert.deepEqual([...ei.laksyt.seur, ...ei.laksyt.muut].map((l) => l.teksti), ['Tehtävät 7-9']);
+  // Integraation aktiivinen läksy näkyy sen vihjeen päivällä.
+  const vihje = `${vanha} · lukujärjestys MA ke 21.10. 08:15`;
+  const on = wilmaModel(sensorit({ ...tunnit, kaikki_laksyt: { state: '1', attributes: { hw_1: vihje } }, aktiiviset_laksyt: { state: '1', attributes: { hw_1: vihje } } }), nyt);
+  assert.deepEqual(on.laksyt.muut.map((l) => [l.teksti, l.milloin]), [['Kokeeseen tehtävät 1-6', 'ke 21.10.']]);
+});

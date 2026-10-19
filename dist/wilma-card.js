@@ -15,7 +15,7 @@
  * ks. test/model.test.mjs.
  */
 
-const VERSION = '1.0.8';
+const VERSION = '1.0.9';
 
 // Oppiaineet: [koodin alku tai sana nimessä, nimi]. Myöhempi osuma voittaa.
 const KOODIT = [
@@ -159,6 +159,9 @@ function wilmaModel(s, nyt, asetukset = {}) {
     ? paivatyt.filter((l) => (Array.isArray(l.dates) && l.dates.length ? l.dates.includes(iso(d)) : String(l.day) === isoVp(d)))
       .map((l) => [isoVp(d), l.start, l.end, l.subject, l.teacher, l.room].map((x) => String(x || '')))
     : viikko.filter((t) => t[0] === isoVp(d)));
+  // Ensimmäinen päivä, jolta tunnit tiedetään. Sitä aiemmista päivistä ei voi päätellä mitään.
+  const tunnetutPaivat = paivatyt ? paivatyt.flatMap((l) => (Array.isArray(l.dates) ? l.dates : [])).sort() : [];
+  const ensimmainen = tunnetutPaivat.length ? isoPaiva(tunnetutPaivat[0]) : null;
   let seur = null;
   for (let i = 1; i < 8 && !seur; i++) {
     const d = lisaa(tanaan, i);
@@ -253,7 +256,9 @@ function wilmaModel(s, nyt, asetukset = {}) {
     const annettu = isoPaiva(o[0]);
     let era = null;
     let oma = false;
-    if (ha.known && annettu) {
+    // Jos tunnit tiedetään vasta antopäivää seuraavan päivän jälkeen, oikea palautustunti voi
+    // puuttua: silloin käytetään integraation vihjettä ja aktiivisten läksyjen listaa.
+    if (ha.known && annettu && !(ensimmainen && lisaa(annettu, 1) < ensimmainen)) {
       for (let i = 1; i < 15 && !era; i++) {
         const d = lisaa(annettu, i);
         if (onAinetta(d, ha.nimi)) { era = d; oma = true; }
