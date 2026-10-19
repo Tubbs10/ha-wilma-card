@@ -15,7 +15,7 @@
  * ks. test/model.test.mjs.
  */
 
-const VERSION = '1.0.7';
+const VERSION = '1.0.8';
 
 // Oppiaineet: [koodin alku tai sana nimessä, nimi]. Myöhempi osuma voittaa.
 const KOODIT = [
@@ -542,12 +542,10 @@ h3 { margin: 0; font-size: 19px; line-height: 1.1; }
 .selite { display: flex; gap: 14px; font-size: 12px; margin-top: -8px; }
 .selite span { display: flex; align-items: center; gap: 5px; }
 
-.koe { align-items: center; }
-.koe .pv { display: flex; align-items: baseline; justify-content: flex-end; gap: 3px; }
-.koe .pv b { font-size: 34px; line-height: 1; letter-spacing: -0.03em; }
-.koe .pv b.hl { margin-left: 0; padding: 0 6px; }
-.koe .pv small { font-size: 12px; }
-.koe .pv .sana { font-size: 13px; font-weight: 500; }
+/* Koepäivä kuten läksyn eräpäivä: isot luvut jäävät arvosanoille. */
+.koe .pv { display: flex; justify-content: flex-end; align-items: flex-start; }
+.koe .hl { margin-left: 0; margin-right: -6px; }
+.koe .pv .sana { font-size: 15px; font-weight: 500; line-height: 1.15; }
 
 .arvosana { align-items: center; }
 .arvosana > b { font-size: 44px; line-height: 1; letter-spacing: -0.03em; }
@@ -640,9 +638,11 @@ function piirra(m, nimi, ui = {}) {
     h.push(`<div class="lista tiivis">${k.lahella.map((x) => {
       // Korostus kaikille lähimmän koepäivän kokeille.
       const hl = x.ero === k.lahella[0].ero ? ' hl' : '';
-      const pv = x.ero === 0 ? `<span class="sana${hl}">tänään</span>` : x.ero === 1 ? `<span class="sana${hl}">huomenna</span>`
-        : `<b class="disp num${hl}">${x.ero}</b><small class="sec">pv</small>`;
-      return `<div class="kisko koe"><div class="pv">${pv}</div><div class="sis"><span class="nimi">${esc(x.aine)}${x.kuvaus ? ` · ${esc(x.kuvaus)}` : ''}</span><span class="meta sec">${esc(x.paivays)}</span></div></div>`;
+      const sana = x.ero === 0 ? 'tänään' : x.ero === 1 ? 'huomenna' : '';
+      const pv = sana || !x.paiva ? `<div class="pv"><span class="sana${hl}">${sana || esc(x.paivays)}</span></div>`
+        : `<div class="era"><small class="sec">${PV[vp(x.paiva)]}</small><b class="num${hl}">${x.paiva.getDate()}.${x.paiva.getMonth() + 1}.</b></div>`;
+      const meta = sana ? x.paivays : `${x.ero} päivän päästä`;
+      return `<div class="kisko koe">${pv}<div class="sis"><span class="nimi">${esc(x.aine)}${x.kuvaus ? ` · ${esc(x.kuvaus)}` : ''}</span><span class="meta sec">${esc(meta)}</span></div></div>`;
     }).join('')}</div>`);
   } else {
     h.push(`<div class="kisko"><div></div><div class="tyhja sec">Ei kokeita seuraavaan ${KOKEET_LAHIAIKA_PV} päivään.</div></div>`);

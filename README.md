@@ -122,7 +122,7 @@ Osio käyttää integraation [Tubbs10/ha-wilma](https://github.com/Tubbs10/ha-wi
   - **Tänään.** Näkyy siihen asti, kun aineen tunti alkaa.
   - **Huomiseksi** (tai seuraavaksi koulupäiväksi) ja **Myöhemmin.** Palautuspäivä on
     aineen seuraava tunti.
-- **Kokeet** kahden viikon sisällä ja päivät niihin.
+- **Kokeet** kahden viikon sisällä: päivämäärä ja montako päivää kokeeseen on.
 - **Huomiot.** Lukemattomat Wilma-viestit, selvitettävät tuntimerkinnät, huomautukset ja
   tiedotteet. Osio näkyy, kun siinä on sisältöä.
 - **Arvosanat** viimeiseltä viikolta.
