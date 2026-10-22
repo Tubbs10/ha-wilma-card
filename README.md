@@ -10,25 +10,10 @@ Wilma-viestit, arvosanat ja kehut.
 
 ## Wilma-integraatio
 
-Kortti lukee Wilma-integraation sensoreita. Asenna integraatio ensin ja lisää Wilma-tilisi.
+Kortti lukee [Wilma-integraation](https://github.com/mniittymaki/ha-wilma) sensoreita. Asenna
+integraatio ensin ja lisää Wilma-tilisi. Kortti tarvitsee integraation version 1.2.18 tai uudemman.
 
-| Integraatio | Kortin ominaisuudet |
-|---|---|
-| [Tubbs10/ha-wilma](https://github.com/Tubbs10/ha-wilma) 1.2.13 tai uudempi | Kaikki |
-| [mniittymaki/ha-wilma](https://github.com/mniittymaki/ha-wilma) 1.2.10 | Kaikki paitsi alla luetellut |
-
-[![Avaa integraatio HACSissa](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Tubbs10&repository=ha-wilma&category=integration)
-
-Alkuperäisen integraation (mniittymaki/ha-wilma) kanssa puuttuvat:
-
-- **Viestit-osio:** viestien lukeminen kortissa ja kiinnittäminen. Asetuksen `pinned` säännöllä
-  kiinnitetystä viestistä näkyy otsikko, lähettäjä ja päivä.
-- **Kehun päivämäärä ja huomautukset** kouluissa, joiden Wilmasta alkuperäinen integraatio
-  ei saa tuntimerkinnän päivämäärää. Kortti näyttää huomautuksista viimeisen viikon merkinnät,
-  joten päiväämätön merkintä jää pois.
-- **Aiemmat huomautukset.** Viikkoa vanhemmat huomautukset avattavana listana.
-- **Päivätty lukujärjestys.** Kun lukujärjestys vaihtuu jakson vaihtuessa, alkuperäisen
-  integraation kanssa samaan aikaan voi näkyä kaksi tuntia: vanhan ja uuden jakson.
+[![Avaa integraatio HACSissa](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mniittymaki&repository=ha-wilma&category=integration)
 
 ## Asennus
 
@@ -109,7 +94,7 @@ pinned:
 
 Kirjainkoolla ei ole väliä. Säännöllä kiinnitetty viesti poistetaan poistamalla sääntö.
 
-Osio käyttää integraation [Tubbs10/ha-wilma](https://github.com/Tubbs10/ha-wilma) toimintoja
+Osio käyttää Wilma-integraation toimintoja
 `wilma.get_message`, `wilma.pin_message` ja `wilma.unpin_message` sekä **Uudet viestit**
 -sensorin attribuutteja `messages` ja `pinned`.
 
