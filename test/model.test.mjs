@@ -402,3 +402,18 @@ test('läksy, joka on annettu ennen tunnettuja tunteja, ei saa omaa eräpäivä�
   const on = wilmaModel(sensorit({ ...tunnit, kaikki_laksyt: { state: '1', attributes: { hw_1: vihje } }, aktiiviset_laksyt: { state: '1', attributes: { hw_1: vihje } } }), nyt);
   assert.deepEqual(on.laksyt.muut.map((l) => [l.teksti, l.milloin]), [['Kokeeseen tehtävät 1-6', 'ke 21.10.']]);
 });
+
+test('tämän päivän koe poistuu, kun aineen tunti on päättynyt', () => {
+  // Maanantai: MA 08:15–09:15, ENA1 09:30–10:30.
+  const kokeet = { seuraava_koe: { state: 'x', attributes: {
+    exam_1: '2026-10-05 · ENA1 ENA109 · Kappale 4', exam_2: '2026-10-05 · MA MA09 · Koe 2', exam_3: '2026-10-05 · KO1 KO09 · Ruokakoe',
+  } } };
+  const nakyy = (h, min) => wilmaModel(sensorit(kokeet), ma(h, min)).kokeet.lahella.map((k) => k.kuvaus);
+  assert.deepEqual(nakyy(9, 0), ['Kappale 4', 'Koe 2', 'Ruokakoe']);
+  // Matematiikan tunti päättyi 09:15, englanti on vielä kesken.
+  assert.deepEqual(nakyy(9, 40), ['Kappale 4', 'Ruokakoe']);
+  // Englanti päättyi 10:30. Tunnistamattoman aineen koe poistuu koulupäivän päättyessä.
+  assert.deepEqual(nakyy(10, 30), []);
+  // Huomisen koe näkyy edelleen.
+  assert.deepEqual(wilmaModel(sensorit(), ma(16)).kokeet.lahella.map((k) => k.ero), [1]);
+});
