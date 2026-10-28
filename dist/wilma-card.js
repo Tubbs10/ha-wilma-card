@@ -15,7 +15,7 @@
  * ks. test/model.test.mjs.
  */
 
-const VERSION = '1.0.9';
+const VERSION = '1.0.10';
 
 // Oppiaineet: [koodin alku tai sana nimessä, nimi]. Myöhempi osuma voittaa.
 const KOODIT = [
@@ -223,7 +223,22 @@ function wilmaModel(s, nyt, asetukset = {}) {
     };
   }
 
-  /* Kokeet: "2026-10-05 · ENA1 ENA109 · KPL 6 sanakoe". */
+  /*
+   * Kokeet: "2026-10-05 · ENA1 ENA109 · KPL 6 sanakoe".
+   * Tämän päivän koe on ohi, kun aineen päivän viimeinen tunti on päättynyt. Jos ainetta ei
+   * löydy päivän tunneista, koe on ohi koulupäivän päätyttyä.
+   */
+  const tanaanRivit = rivit(s('tanaan'), 'lesson_').map(osat);
+  const paivanTunnit = (tanaanRivit.length
+    ? tanaanRivit.map((o) => ({ loppu: o[1], aine: o[2] }))
+    : tunnitPaivana(tanaan).map((o) => ({ loppu: o[2], aine: o[3] })))
+    .filter((t) => t.loppu)
+    .map((t) => ({ loppuMin: mins(t.loppu), aine: aine(t.aine || '', al) }));
+  const koeOhi = (nimi) => {
+    const oman = paivanTunnit.filter((t) => t.aine.known && t.aine.nimi === nimi);
+    const tunnit2 = oman.length ? oman : paivanTunnit;
+    return tunnit2.length > 0 && nytMin >= Math.max(...tunnit2.map((t) => t.loppuMin));
+  };
   const kokeet = rivit(s('seuraava_koe'), 'exam_').map((v) => {
     const o = osat(v);
     const d = isoPaiva(o[0]);
@@ -231,7 +246,7 @@ function wilmaModel(s, nyt, asetukset = {}) {
       paiva: d, ero: d ? erotus(d, tanaan) : 0, aine: aine(o.length > 1 ? o[1] : '', al).nimi,
       kuvaus: o.slice(2).join(SEP), paivays: d ? lyhyt(d) : o[0],
     };
-  });
+  }).filter((k) => !(k.paiva && k.ero === 0 && koeOhi(k.aine)));
   const lahella = kokeet.filter((k) => k.ero >= 0 && k.ero <= KOKEET_LAHIAIKA_PV).sort((a, b) => a.ero - b.ero);
   const myohemmin = kokeet.filter((k) => k.ero > KOKEET_LAHIAIKA_PV).sort((a, b) => a.ero - b.ero);
 
