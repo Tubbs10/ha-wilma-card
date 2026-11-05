@@ -1,7 +1,7 @@
 // Aja: node --test test/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { wilmaModel, piirra, aine, erotaAine, ratkaise, slug, linkitetty } from '../dist/wilma-card.js';
+import { wilmaModel, piirra, aine, erotaAine, ratkaise, slug, linkitetty, ruokakalenteri, ruokaPaivalle } from '../dist/wilma-card.js';
 
 // Keksitty oppilas. Viikko: ma MA+ENA1, ti YM, ke MA (ke 7.10.2026 on keskiviikko).
 const sensorit = (lisa = {}) => {
@@ -416,4 +416,32 @@ test('tämän päivän koe poistuu, kun aineen tunti on päättynyt', () => {
   assert.deepEqual(nakyy(10, 30), []);
   // Huomisen koe näkyy edelleen.
   assert.deepEqual(wilmaModel(sensorit(), ma(16)).kokeet.lahella.map((k) => k.ero), [1]);
+});
+
+test('ruokalista näkyy vain, kun kouluruoka-integraatio on asennettu', () => {
+  const kalenteri = { entity_id: 'calendar.koulu_kalenteri', platform: 'kouluruoka' };
+  const muu = { entity_id: 'calendar.perhe', platform: 'local_calendar' };
+  const hass = (entiteetit) => ({ states: { 'calendar.koulu_kalenteri': {} }, entities: Object.fromEntries(entiteetit.map((e) => [e.entity_id, e])) });
+  assert.equal(ruokakalenteri(hass([muu]), {}), null);
+  assert.equal(ruokakalenteri(hass([muu, kalenteri]), {}), 'calendar.koulu_kalenteri');
+  assert.equal(ruokakalenteri(hass([kalenteri]), { lunch_menu: false }), null);
+  assert.equal(ruokakalenteri(hass([]), { lunch_menu: 'calendar.koulu_kalenteri' }), 'calendar.koulu_kalenteri');
+  assert.equal(ruokakalenteri(hass([]), { lunch_menu: 'calendar.puuttuu' }), null);
+
+  const tapahtumat = [
+    { summary: '🍽️ Kalakeitto', start: { dateTime: '2026-10-05T00:00:00+03:00' } },
+    { summary: '🥗 Kasviskeitto', start: { dateTime: '2026-10-05T00:00:00+03:00' } },
+    { summary: '🍽️ Makaronilaatikko', start: { dateTime: '2026-10-06T00:00:00+03:00' } },
+  ];
+  assert.deepEqual(ruokaPaivalle(tapahtumat, '2026-10-05'), { pvm: '2026-10-05', lounas: 'Kalakeitto', kasvis: 'Kasviskeitto' });
+  assert.deepEqual(ruokaPaivalle(tapahtumat, '2026-10-06'), { pvm: '2026-10-06', lounas: 'Makaronilaatikko', kasvis: '' });
+  assert.deepEqual(ruokaPaivalle([], '2026-10-07'), { pvm: '2026-10-07', lounas: '', kasvis: '' });
+
+  // Kortti: ruoka näytettävän päivän aikajanan alla, ei mitään ilman ruokaa tai väärälle päivälle.
+  const m = wilmaModel(sensorit(), ma(7, 30));
+  assert.equal(m.paiva.pvm, '2026-10-05');
+  const html = piirra(m, 'Aino', { ruoka: ruokaPaivalle(tapahtumat, '2026-10-05') });
+  assert.ok(html.includes('Kalakeitto') && html.includes('Kasviskeitto') && html.includes('class="ruoka"'));
+  assert.ok(!piirra(m, 'Aino', {}).includes('class="ruoka"'));
+  assert.ok(!piirra(m, 'Aino', { ruoka: ruokaPaivalle(tapahtumat, '2026-10-06') }).includes('class="ruoka"'));
 });

@@ -15,6 +15,12 @@ integraatio ensin ja lisää Wilma-tilisi. Kortti tarvitsee integraation version
 
 [![Avaa integraatio HACSissa](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mniittymaki&repository=ha-wilma&category=integration)
 
+### Ruokalista (valinnainen)
+
+Jos [Kouluruoka-integraatio](https://github.com/mniittymaki/ha-kouluruoka) on asennettu, kortti
+näyttää koulupäivän lounaan ja kasvislounaan aikajanan alla. Kortti löytää integraation
+kalenterin itse. Ilman integraatiota kortti toimii kuten ennenkin.
+
 ## Asennus
 
 [![Avaa HACSissa](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Tubbs10&repository=ha-wilma-card&category=plugin)
@@ -46,13 +52,14 @@ jokaiselle.
 
 ## Asetukset
 
-Kaikki asetukset ovat valinnaisia. Kaksi ensimmäistä löytyvät kortin editorista, loput
+Kaikki asetukset ovat valinnaisia. Kolme ensimmäistä löytyvät kortin editorista, loput
 lisätään YAML-näkymässä.
 
 | Asetus | Selitys |
 |---|---|
 | `device` | Lapsi. Valitaan editorin pudotusvalikosta. |
 | `title` | Teksti otsikon yläpuolella. Oletus on lapsen etunimi ja luokka. |
+| `lunch_menu` | Kouluruoka-integraation kalenteri, esim. `calendar.kouluruoka_kalenteri`. Oletus on ensimmäinen löytyvä. `false` piilottaa ruokalistan. |
 | `child` | Lapsen nimi tekstinä `device`-asetuksen sijaan, esim. `Aino Esimerkki`. |
 | `subjects` | Koulun omat ainekoodit, joita kortti ei tunnista valmiiksi. |
 | `strip_suffixes` | Tunnisteet, jotka poistetaan tuntimerkinnän lopusta. |
@@ -102,6 +109,7 @@ Osio käyttää Wilma-integraation toimintoja
 
 - **Koulupäivä.** Koulupäivän aikana kuluva päivä, sen jälkeen seuraava koulupäivä.
   Tunnit ovat kestonsa korkuisia ja tauot näkyvät niiden väleinä. Käynnissä oleva tunti on merkitty.
+  Jos Kouluruoka-integraatio on asennettu, aikajanan alla on päivän lounas ja kasvislounas.
 - **Läksyt.** Otsikon alla viikkorivi: kuluva tai seuraava koulupäivä ja sitä seuraavat
   koulupäivät, neliö on läksy ja rengas koe. Sen alla läksyt kolmessa ryhmässä:
   - **Tänään.** Näkyy siihen asti, kun aineen tunti alkaa.

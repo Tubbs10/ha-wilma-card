@@ -15,7 +15,7 @@
  * ks. test/model.test.mjs.
  */
 
-const VERSION = '1.0.10';
+const VERSION = '1.0.11';
 
 // Oppiaineet: [koodin alku tai sana nimessä, nimi]. Myöhempi osuma voittaa.
 const KOODIT = [
@@ -214,6 +214,7 @@ function wilmaModel(s, nyt, asetukset = {}) {
       paivays: sama(nayta, tanaan) || huomenna
         ? `${PV_PITKA[vp(nayta)]} ${nayta.getDate()}.${nayta.getMonth() + 1}.`
         : `${nayta.getDate()}.${nayta.getMonth() + 1}.`,
+      pvm: iso(nayta),
       tunteja: tunnit.length,
       kello: kesken && nytMin >= tunnit[0].alkuMin
         ? `päättyy ${tunnit[tunnit.length - 1].loppu}` : `alkaa ${tunnit[0].alku}`,
@@ -532,6 +533,8 @@ ha-card { background: none; border: none; box-shadow: none; padding: 6px 8px 16p
 .tunti.nyt .palkki { border-left-color: var(--w-hl); }
 .tauko > div:last-child { border-left: 3px dotted var(--disabled-text-color, #777); padding-left: 12px; display: flex; align-items: center; font-size: 12px; }
 .loppu { padding-top: 6px; font-size: 13px; }
+.ruoka { display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.35; }
+.ruoka .sec { font-size: 13px; }
 
 
 h2 { margin: 0; font-size: 28px; line-height: 1.1; }
@@ -616,6 +619,12 @@ function piirra(m, nimi, ui = {}) {
     }
     jana.push(`<div class="kisko loppu"><div class="sec num">${esc(p.paattyy)}</div><div class="sec">koulu päättyy</div></div>`);
     h.push(`<div class="jana">${jana.join('')}</div>`);
+    // Ruokalista vain, jos ha-kouluruoka on asennettu ja päivälle on ruoka.
+    const ruoka = ui.ruoka && ui.ruoka.pvm === p.pvm ? ui.ruoka : null;
+    if (ruoka && (ruoka.lounas || ruoka.kasvis)) {
+      const rivi = (otsikko, ruokalaji) => (ruokalaji ? `<div class="kisko"><div class="sec">${otsikko}</div><div>${esc(ruokalaji)}</div></div>` : '');
+      h.push(`<div class="ruoka">${rivi('Lounas', ruoka.lounas)}${rivi('Kasvis', ruoka.kasvis)}</div>`);
+    }
   } else {
     h.push(`<div class="paa"><div class="ylä"><span class="sec">${esc(nimi)}</span></div><h1 class="disp">Koulupäivä</h1></div><div class="tyhja sec">Ei tunteja tiedossa.</div>`);
   }
@@ -812,6 +821,30 @@ function ratkaise(hass, config) {
   return { roolit, laite };
 }
 
+/**
+ * Kouluruoka-integraation (mniittymaki/ha-kouluruoka) kalenteri, jos se on asennettu.
+ * Asetus lunch_menu: kalenterin entity_id, false = ei ruokalistaa, puuttuu = ensimmäinen löytyvä.
+ */
+function ruokakalenteri(hass, config = {}) {
+  const asetus = config.lunch_menu;
+  if (asetus === false) return null;
+  if (typeof asetus === 'string' && asetus) return hass.states && hass.states[asetus] ? asetus : null;
+  const k = Object.values(hass.entities || {}).find((e) => e.platform === 'kouluruoka' && e.entity_id.startsWith('calendar.'));
+  return k ? k.entity_id : null;
+}
+
+/** Päivän lounas ja kasvislounas kalenterin tapahtumista ("🍽️ ruoka" / "🥗 ruoka"). */
+function ruokaPaivalle(tapahtumat, pvm) {
+  const paivan = (Array.isArray(tapahtumat) ? tapahtumat : []).filter((t) => {
+    const alku = t && t.start ? (typeof t.start === 'string' ? t.start : t.start.date || t.start.dateTime) : '';
+    return String(alku || '').slice(0, 10) === pvm;
+  });
+  const nimi = (t) => String(t.summary || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
+  const kasvis = paivan.find((t) => String(t.summary || '').startsWith('🥗'));
+  const lounas = paivan.find((t) => t !== kasvis);
+  return { pvm, lounas: lounas ? nimi(lounas) : '', kasvis: kasvis ? nimi(kasvis) : '' };
+}
+
 /* ---------- kortti ---------- */
 
 if (typeof HTMLElement !== 'undefined' && typeof customElements !== 'undefined') {
@@ -936,12 +969,44 @@ if (typeof HTMLElement !== 'undefined' && typeof customElements !== 'undefined')
         const palvelut = (this._hass.services && this._hass.services.wilma) || {};
         const palvelu = !!palvelut.get_message;
         const kiinnitys = !!(palvelut.pin_message && palvelut.unpin_message);
-        this.shadowRoot.innerHTML = piirra(malli, nimi, { palvelu, kiinnitys, lista: !!this._lista, moitteet: !!this._moitteet, viestivirhe: this._viestivirhe, auki: this._auki, viestit: this._viestit });
+        const ruoka = this._ruokalista(malli, nyt);
+        this.shadowRoot.innerHTML = piirra(malli, nimi, { palvelu, kiinnitys, lista: !!this._lista, moitteet: !!this._moitteet, viestivirhe: this._viestivirhe, auki: this._auki, viestit: this._viestit, ruoka });
         this._viimeistele(malli, palvelu);
       } catch (err) {
         this.shadowRoot.innerHTML = `<ha-card style="padding:16px">Wilma-kortti: ${esc(err && err.message)}</ha-card>`;
         throw err;
       }
+    }
+
+    /**
+     * Näytettävän koulupäivän ruoka kouluruoka-kalenterista. Haetaan taustalla kerran tunnissa
+     * päivää kohden; ilman integraatiota palauttaa null eikä hae mitään.
+     */
+    _ruokalista(malli, nyt) {
+      const kalenteri = ruokakalenteri(this._hass, this._config);
+      if (!kalenteri || !malli.paiva) return null;
+      const avain = `${kalenteri}|${malli.paiva.pvm}`;
+      const r = this._ruoka;
+      if (!r || r.avain !== avain || (!r.haku && nyt - r.haettu > 3600000)) this._haeRuoka(kalenteri, malli.paiva.pvm, avain);
+      return r && r.avain === avain ? r.tulos : null;
+    }
+
+    async _haeRuoka(kalenteri, pvm, avain) {
+      const vanha = this._ruoka && this._ruoka.avain === avain ? this._ruoka.tulos : null;
+      this._ruoka = { avain, haku: true, haettu: Date.now(), tulos: vanha };
+      const [y, m, d] = pvm.split('-').map(Number);
+      const alku = new Date(y, m - 1, d, 0, 0).toISOString();
+      const loppu = new Date(y, m - 1, d, 23, 59).toISOString();
+      let tulos = vanha;
+      try {
+        const tapahtumat = await this._hass.callApi('GET', `calendars/${kalenteri}?start=${encodeURIComponent(alku)}&end=${encodeURIComponent(loppu)}`);
+        tulos = ruokaPaivalle(tapahtumat, pvm);
+      } catch (err) {
+        console.warn('wilma-card: ruokalistan haku epäonnistui', err);
+      }
+      if (!this._ruoka || this._ruoka.avain !== avain) return;
+      this._ruoka = { avain, haku: false, haettu: Date.now(), tulos };
+      this._paivita(true);
     }
 
     /** Piirron jälkeen: luettujen kiinnitettyjen viestien esikatselut ja kohdistus takaisin painikkeeseen. */
@@ -969,12 +1034,13 @@ if (typeof HTMLElement !== 'undefined' && typeof customElements !== 'undefined')
     }
 
     static getConfigForm() {
-      const nimet = { device: 'Lapsi (Wilma-integraation laite)', title: 'Otsikko (valinnainen)' };
-      const ohjeet = { title: 'Oletus: lapsen etunimi ja luokka.' };
+      const nimet = { device: 'Lapsi (Wilma-integraation laite)', title: 'Otsikko (valinnainen)', lunch_menu: 'Ruokalista (valinnainen)' };
+      const ohjeet = { title: 'Oletus: lapsen etunimi ja luokka.', lunch_menu: 'Kouluruoka-integraation kalenteri. Oletus: ensimmäinen löytyvä, jos integraatio on asennettu.' };
       return {
         schema: [
           { name: 'device', selector: { device: { filter: { integration: 'wilma' } } } },
           { name: 'title', selector: { text: {} } },
+          { name: 'lunch_menu', selector: { entity: { filter: { integration: 'kouluruoka', domain: 'calendar' } } } },
         ],
         computeLabel: (kentta) => nimet[kentta.name],
         computeHelper: (kentta) => ohjeet[kentta.name],
@@ -990,4 +1056,4 @@ if (typeof HTMLElement !== 'undefined' && typeof customElements !== 'undefined')
   console.info(`%c WILMA-CARD %c ${VERSION} `, 'background:#D9F24B;color:#15170A;font-weight:700', 'background:#333;color:#fff');
 }
 
-export { wilmaModel, piirra, aine, erotaAine, ainelistat, ratkaise, slug, linkitetty };
+export { wilmaModel, piirra, aine, erotaAine, ainelistat, ratkaise, slug, linkitetty, ruokakalenteri, ruokaPaivalle };
